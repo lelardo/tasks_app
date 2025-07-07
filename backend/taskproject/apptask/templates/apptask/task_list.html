@@ -1,0 +1,75 @@
+{% extends 'apptask/base.html' %}
+
+{% block title %}Lista de Tareas - Sistema de Tareas{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1>
+        <i class="bi bi-list-task text-primary"></i> Lista de Tareas
+    </h1>
+    <a href="{% url 'task_create' %}" class="btn btn-primary">
+        <i class="bi bi-plus-circle"></i> Nueva Tarea
+    </a>
+</div>
+
+{% if tasks %}
+    <div class="row">
+        {% for task in tasks %}
+            <div class="col-md-6 col-lg-4 mb-4">
+                <div class="card h-100">
+                    <div class="card-header bg-primary text-white">
+                        <h5 class="card-title mb-0">{{ task.theme }}</h5>
+                    </div>
+                    <div class="card-body">
+                        <p class="card-text">
+                            {{ task.instruction|truncatewords:15 }}
+                        </p>
+                        <div class="mb-2">
+                            <small class="text-muted">
+                                <i class="bi bi-building"></i> <strong>Clase:</strong> {{ task.school_class.identify }}
+                            </small>
+                        </div>
+                        <div class="mb-2">
+                            <small class="text-muted">
+                                <i class="bi bi-person"></i> <strong>Profesor:</strong> {{ task.school_class.teacher.name }}
+                            </small>
+                        </div>
+                        <div class="mb-2">
+                            <small class="text-muted">
+                                <i class="bi bi-calendar"></i> <strong>Entrega:</strong> {{ task.delivery_date }}
+                            </small>
+                        </div>
+                        <div class="mb-3">
+                            <small class="text-muted">
+                                <i class="bi bi-upload"></i> <strong>Entregas:</strong> {{ task.delivery_list.count }}
+                            </small>
+                        </div>
+                    </div>
+                    <div class="card-footer bg-transparent">
+                        <div class="d-flex gap-2">
+                            <a href="{% url 'task_detail' task.id %}" class="btn btn-outline-primary btn-sm flex-fill">
+                                <i class="bi bi-eye"></i> Ver
+                            </a>
+                            <a href="{% url 'task_edit' task.id %}" class="btn btn-outline-secondary btn-sm flex-fill">
+                                <i class="bi bi-pencil"></i> Editar
+                            </a>
+                            <a href="{% url 'delivery_create' task.id %}" class="btn btn-outline-success btn-sm flex-fill">
+                                <i class="bi bi-upload"></i> Entregar
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        {% endfor %}
+    </div>
+{% else %}
+    <div class="text-center py-5">
+        <i class="bi bi-inbox display-1 text-muted"></i>
+        <h3 class="text-muted mt-3">No hay tareas creadas</h3>
+        <p class="text-muted">Comienza creando tu primera tarea</p>
+        <a href="{% url 'task_create' %}" class="btn btn-primary btn-lg">
+            <i class="bi bi-plus-circle"></i> Crear Primera Tarea
+        </a>
+    </div>
+{% endif %}
+{% endblock %}

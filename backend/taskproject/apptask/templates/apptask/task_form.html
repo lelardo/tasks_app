@@ -1,0 +1,83 @@
+{% extends 'apptask/base.html' %}
+
+{% block title %}{{ title }} - Sistema de Tareas{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h4 class="mb-0">
+                    <i class="bi bi-journal-plus"></i> {{ title }}
+                </h4>
+            </div>
+            <div class="card-body">
+                <form method="post">
+                    {% csrf_token %}
+                    
+                    <div class="mb-3">
+                        <label for="{{ form.school_class.id_for_label }}" class="form-label">
+                            <i class="bi bi-building"></i> Clase
+                        </label>
+                        {{ form.school_class }}
+                        {% if form.school_class.errors %}
+                            <div class="text-danger small">
+                                {{ form.school_class.errors }}
+                            </div>
+                        {% endif %}
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="{{ form.theme.id_for_label }}" class="form-label">
+                            <i class="bi bi-tag"></i> Tema de la Tarea
+                        </label>
+                        {{ form.theme }}
+                        {% if form.theme.errors %}
+                            <div class="text-danger small">
+                                {{ form.theme.errors }}
+                            </div>
+                        {% endif %}
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="{{ form.instruction.id_for_label }}" class="form-label">
+                            <i class="bi bi-list-ul"></i> Instrucciones
+                        </label>
+                        {{ form.instruction }}
+                        <div class="form-text">
+                            Proporciona instrucciones detalladas para la tarea
+                        </div>
+                        {% if form.instruction.errors %}
+                            <div class="text-danger small">
+                                {{ form.instruction.errors }}
+                            </div>
+                        {% endif %}
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="{{ form.delivery_date.id_for_label }}" class="form-label">
+                            <i class="bi bi-calendar"></i> Fecha de Entrega
+                        </label>
+                        {{ form.delivery_date }}
+                        {% if form.delivery_date.errors %}
+                            <div class="text-danger small">
+                                {{ form.delivery_date.errors }}
+                            </div>
+                        {% endif %}
+                    </div>
+
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-check-circle"></i> 
+                            {% if task %}Actualizar{% else %}Crear{% endif %} Tarea
+                        </button>
+                        <a href="{% if task %}{% url 'task_detail' task.id %}{% else %}{% url 'task_list' %}{% endif %}" class="btn btn-secondary">
+                            <i class="bi bi-x-circle"></i> Cancelar
+                        </a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
