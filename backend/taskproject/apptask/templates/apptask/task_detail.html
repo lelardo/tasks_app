@@ -31,7 +31,7 @@
                     </div>
                     <div class="col-md-6">
                         <h6><i class="bi bi-calendar text-primary"></i> Fecha de Entrega</h6>
-                        <p>{{ task.delivery_date }}</p>
+                        <p>{{ task.delivery_date }} a las {{ task.delivery_time }}</p>
                     </div>
                     <div class="col-md-6">
                         <h6><i class="bi bi-clock text-primary"></i> Creada</h6>
@@ -98,8 +98,9 @@
                             <thead>
                                 <tr>
                                     <th>Estudiante</th>
-                                    <th>Fecha de Entrega</th>
+                                    <th>Fecha y Hora de Entrega</th>
                                     <th>Archivo</th>
+                                    <th>Calificación</th>
                                     <th>Estado</th>
                                     <th>Acciones</th>
                                 </tr>
@@ -111,11 +112,26 @@
                                             <strong>{{ delivery.student.name }}</strong><br>
                                             <small class="text-muted">{{ delivery.student.email }}</small>
                                         </td>
-                                        <td>{{ delivery.date }}</td>
+                                        <td>
+                                            {{ delivery.date }} {{ delivery.delivery_time }}<br>
+                                            {% if delivery.is_late %}
+                                                <span class="badge bg-danger">Entrega tardía</span>
+                                            {% else %}
+                                                <span class="badge bg-success">A tiempo</span>
+                                            {% endif %}
+                                        </td>
                                         <td>
                                             <a href="{{ delivery.file_url }}" target="_blank" class="btn btn-sm btn-outline-primary">
                                                 <i class="bi bi-download"></i> Ver archivo
                                             </a>
+                                        </td>
+                                        <td>
+                                            {% if delivery.grade %}
+                                                <strong>{{ delivery.grade|floatformat:2 }}/10</strong><br>
+                                                <small class="text-muted">{{ delivery.grade_status }}</small>
+                                            {% else %}
+                                                <span class="text-muted">Sin calificar</span>
+                                            {% endif %}
                                         </td>
                                         <td>
                                             {% if delivery.feedback %}
@@ -125,23 +141,32 @@
                                             {% endif %}
                                         </td>
                                         <td>
-                                            {% if not delivery.feedback %}
-                                                <a href="{% url 'delivery_grade' delivery.id %}" class="btn btn-sm btn-outline-success">
-                                                    <i class="bi bi-check-circle"></i> Calificar
-                                                </a>
-                                            {% else %}
-                                                <button class="btn btn-sm btn-outline-info" data-bs-toggle="collapse" data-bs-target="#feedback-{{ delivery.id }}">
-                                                    <i class="bi bi-eye"></i> Ver feedback
-                                                </button>
-                                            {% endif %}
+                                            <div class="btn-group">
+                                                {% if not delivery.feedback %}
+                                                    <a href="{% url 'delivery_grade' delivery.id %}" class="btn btn-sm btn-outline-success">
+                                                        <i class="bi bi-check-circle"></i> Calificar
+                                                    </a>
+                                                {% else %}
+                                                    <button class="btn btn-sm btn-outline-info" data-bs-toggle="collapse" data-bs-target="#feedback-{{ delivery.id }}">
+                                                        <i class="bi bi-eye"></i> Ver feedback
+                                                    </button>
+                                                    <a href="{% url 'delivery_edit_grade' delivery.id %}" class="btn btn-sm btn-outline-warning">
+                                                        <i class="bi bi-pencil"></i> Editar
+                                                    </a>
+                                                {% endif %}
+                                            </div>
                                         </td>
                                     </tr>
                                     {% if delivery.feedback %}
                                         <tr class="collapse" id="feedback-{{ delivery.id }}">
-                                            <td colspan="5">
+                                            <td colspan="6">
                                                 <div class="bg-light p-3 rounded">
                                                     <h6>Retroalimentación:</h6>
                                                     <p>{{ delivery.feedback }}</p>
+                                                    {% if delivery.grade %}
+                                                        <h6>Calificación:</h6>
+                                                        <p><strong>{{ delivery.grade|floatformat:2 }}/10</strong> - {{ delivery.grade_status }}</p>
+                                                    {% endif %}
                                                     {% if delivery.file_corrected_url %}
                                                         <a href="{{ delivery.file_corrected_url }}" target="_blank" class="btn btn-sm btn-outline-primary">
                                                             <i class="bi bi-download"></i> Archivo Corregido

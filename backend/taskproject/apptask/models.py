@@ -57,19 +57,12 @@ class Task(models.Model):
     theme = models.CharField(max_length=200)
     instruction = models.TextField(blank=True)
     delivery_date = models.DateField()
+    delivery_time = models.TimeField(help_text="Hora límite de entrega", default="23:59")
     created_at = models.DateTimeField(auto_now_add=True)
 
 
 
 class Delivery(models.Model):
-    GRADE_CHOICES = [
-        ('A', 'Excelente'),
-        ('B', 'Bueno'),
-        ('C', 'Regular'),
-        ('D', 'Necesita mejorar'),
-        ('F', 'Insuficiente'),
-    ]
-    
     task = models.ForeignKey(
         Task, on_delete=models.CASCADE, related_name="delivery_list"
     )
@@ -86,14 +79,39 @@ class Delivery(models.Model):
         related_name="reviewed_deliveries"
     )
     date = models.DateField()
+    delivery_time = models.TimeField(help_text="Hora de entrega", default="12:00")
     file_url = models.CharField(max_length=255)
-    feedback = models.CharField(max_length=255, blank=True)
+    feedback = models.TextField(blank=True)
     file_corrected_url = models.CharField(max_length=255, blank=True)
-    grade = models.CharField(max_length=1, choices=GRADE_CHOICES, blank=True, null=True)
+    grade = models.DecimalField(
+        max_digits=4,
+        decimal_places=2,
+        null=True, 
+        blank=True, 
+        help_text="Calificación numérica (0.00 - 10.00)"
+    )
     
     def __str__(self):
         return f"{self.task.theme} - {self.student.name}"
     
+    @property
+    def is_late(self):
+        """Verifica si la entrega fue tardía"""
+        from datetime import datetime, time
+        delivery_datetime = datetime.combine(self.date, self.delivery_time)
+        deadline_datetime = datetime.combine(self.task.delivery_date, self.task.delivery_time)
+        return delivery_datetime > deadline_datetime
+    
+    @property
+    def grade_status(self):
+        """Obtiene el estado de la calificación"""
+        if self.grade is None:
+            return "Sin calificar"
+        elif self.grade >= 7.0:
+            return "Aprobado"
+        else:
+            return "Reprobado"
+    
     class Meta:
-        ordering = ['-date']
+        ordering = ['-date', '-delivery_time']
 

@@ -79,6 +79,9 @@
                                             <button class="btn btn-sm btn-outline-info" data-bs-toggle="modal" data-bs-target="#feedbackModal{{ delivery.id }}">
                                                 <i class="bi bi-eye"></i> Ver feedback
                                             </button>
+                                            <a href="{% url 'delivery_edit_grade' delivery.id %}" class="btn btn-sm btn-outline-warning">
+                                                <i class="bi bi-pencil"></i> Editar
+                                            </a>
                                         {% endif %}
                                         <a href="{% url 'task_detail' delivery.task.id %}" class="btn btn-sm btn-outline-primary">
                                             <i class="bi bi-arrow-right"></i> Ver tarea
@@ -111,6 +114,11 @@
                             
                             <h6>Retroalimentación:</h6>
                             <p>{{ delivery.feedback }}</p>
+                            
+                            {% if delivery.grade %}
+                                <h6>Calificación:</h6>
+                                <p><strong>{{ delivery.grade|floatformat:2 }}/10</strong> - {{ delivery.grade_status }}</p>
+                            {% endif %}
                             
                             {% if delivery.file_corrected_url %}
                                 <h6>Archivo corregido:</h6>

@@ -54,16 +54,33 @@
                         {% endif %}
                     </div>
 
-                    <div class="mb-3">
-                        <label for="{{ form.delivery_date.id_for_label }}" class="form-label">
-                            <i class="bi bi-calendar"></i> Fecha de Entrega
-                        </label>
-                        {{ form.delivery_date }}
-                        {% if form.delivery_date.errors %}
-                            <div class="text-danger small">
-                                {{ form.delivery_date.errors }}
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="{{ form.delivery_date.id_for_label }}" class="form-label">
+                                    <i class="bi bi-calendar"></i> Fecha de Entrega
+                                </label>
+                                {{ form.delivery_date }}
+                                {% if form.delivery_date.errors %}
+                                    <div class="text-danger small">
+                                        {{ form.delivery_date.errors }}
+                                    </div>
+                                {% endif %}
                             </div>
-                        {% endif %}
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="{{ form.delivery_time.id_for_label }}" class="form-label">
+                                    <i class="bi bi-clock"></i> Hora Límite
+                                </label>
+                                {{ form.delivery_time }}
+                                {% if form.delivery_time.errors %}
+                                    <div class="text-danger small">
+                                        {{ form.delivery_time.errors }}
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
                     </div>
 
                     <div class="d-flex gap-2">

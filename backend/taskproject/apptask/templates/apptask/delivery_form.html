@@ -20,7 +20,7 @@
                         <p><strong>Profesor:</strong> {{ task.school_class.teacher.name }}</p>
                     </div>
                     <div class="col-md-6">
-                        <p><strong>Fecha de entrega:</strong> {{ task.delivery_date }}</p>
+                        <p><strong>Fecha de entrega:</strong> {{ task.delivery_date }} {{ task.delivery_time }}</p>
                         <p><strong>Creada:</strong> {{ task.created_at|date:"d/m/Y" }}</p>
                     </div>
                 </div>

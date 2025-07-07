@@ -80,6 +80,7 @@ def delivery_create(request, task_id):
             delivery = form.save(commit=False)
             delivery.task = task
             delivery.date = timezone.now().date()
+            delivery.delivery_time = timezone.now().time()
             # Por ahora asignamos un profesor por defecto como revisor
             delivery.revisor = User.objects.filter(role='teacher').first()
             delivery.save()
@@ -112,6 +113,27 @@ def delivery_grade(request, delivery_id):
         'form': form,
         'delivery': delivery,
         'title': 'Calificar Entrega'
+    })
+
+
+def delivery_edit_grade(request, delivery_id):
+    """Editar la calificación de una entrega existente"""
+    delivery = get_object_or_404(Delivery, id=delivery_id)
+    
+    if request.method == 'POST':
+        form = GradeDeliveryForm(request.POST, instance=delivery)
+        if form.is_valid():
+            delivery = form.save()
+            messages.success(request, f'Calificación de {delivery.student.name} actualizada exitosamente.')
+            return redirect('task_detail', task_id=delivery.task.id)
+    else:
+        form = GradeDeliveryForm(instance=delivery)
+    
+    return render(request, 'apptask/grade_form.html', {
+        'form': form,
+        'delivery': delivery,
+        'title': 'Editar Calificación',
+        'is_edit': True
     })
 
 

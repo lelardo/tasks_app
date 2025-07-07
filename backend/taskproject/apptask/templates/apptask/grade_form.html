@@ -46,9 +46,9 @@
 
         <!-- Formulario de calificación -->
         <div class="card">
-            <div class="card-header bg-warning text-dark">
+            <div class="card-header {% if is_edit %}bg-warning text-dark{% else %}bg-warning text-dark{% endif %}">
                 <h4 class="mb-0">
-                    <i class="bi bi-check-circle"></i> {{ title }}
+                    <i class="bi bi-{% if is_edit %}pencil{% else %}check-circle{% endif %}"></i> {{ title }}
                 </h4>
             </div>
             <div class="card-body">
@@ -97,14 +97,20 @@
                         {% endif %}
                     </div>
 
-                    <div class="alert alert-warning">
-                        <i class="bi bi-exclamation-triangle"></i>
-                        <strong>Importante:</strong> Una vez calificada, la retroalimentación será visible para el estudiante.
+                    <div class="alert alert-{% if is_edit %}warning{% else %}warning{% endif %}">
+                        <i class="bi bi-{% if is_edit %}exclamation-triangle{% else %}exclamation-triangle{% endif %}"></i>
+                        <strong>{% if is_edit %}Editar calificación:{% else %}Importante:{% endif %}</strong> 
+                        {% if is_edit %}
+                            Los cambios en la calificación y retroalimentación serán visibles para el estudiante inmediatamente.
+                        {% else %}
+                            Una vez calificada, la retroalimentación será visible para el estudiante.
+                        {% endif %}
                     </div>
 
                     <div class="d-flex gap-2">
                         <button type="submit" class="btn btn-warning">
-                            <i class="bi bi-check-circle"></i> Guardar Calificación
+                            <i class="bi bi-{% if is_edit %}pencil{% else %}check-circle{% endif %}"></i> 
+                            {% if is_edit %}Actualizar Calificación{% else %}Guardar Calificación{% endif %}
                         </button>
                         <a href="{% url 'task_detail' delivery.task.id %}" class="btn btn-secondary">
                             <i class="bi bi-arrow-left"></i> Volver a la Tarea

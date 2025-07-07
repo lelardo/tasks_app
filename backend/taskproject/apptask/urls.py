@@ -14,4 +14,5 @@ urlpatterns = [
     path('tasks/<int:task_id>/deliver/', views.delivery_create, name='delivery_create'),
     path('deliveries/', views.delivery_list, name='delivery_list'),
     path('deliveries/<int:delivery_id>/grade/', views.delivery_grade, name='delivery_grade'),
+    path('deliveries/<int:delivery_id>/edit-grade/', views.delivery_edit_grade, name='delivery_edit_grade'),
 ]

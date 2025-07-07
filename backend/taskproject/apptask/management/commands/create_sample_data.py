@@ -1,6 +1,7 @@
 from django.core.management.base import BaseCommand
 from django.utils import timezone
 from datetime import timedelta
+from decimal import Decimal
 from apptask.models import User, SchoolClass, Task, Delivery
 
 
@@ -87,6 +88,7 @@ class Command(BaseCommand):
             defaults={
                 'instruction': 'Resolver los ejercicios 1-10 del capítulo 3. Mostrar todo el proceso de resolución paso a paso.',
                 'delivery_date': today + timedelta(days=7),
+                'delivery_time': timezone.time(23, 59),
             }
         )
 
@@ -96,6 +98,7 @@ class Command(BaseCommand):
             defaults={
                 'instruction': 'Leer el cuento "El Principito" y escribir un ensayo de 500 palabras sobre sus temas principales.',
                 'delivery_date': today + timedelta(days=5),
+                'delivery_time': timezone.time(18, 30),
             }
         )
         
@@ -105,6 +108,7 @@ class Command(BaseCommand):
             defaults={
                 'instruction': 'Calcular el área y perímetro de las figuras geométricas del ejercicio 5.2.',
                 'delivery_date': today + timedelta(days=3),
+                'delivery_time': timezone.time(15, 00),
             }
         )
 
@@ -115,9 +119,10 @@ class Command(BaseCommand):
             defaults={
                 'revisor': teacher1,
                 'date': today - timedelta(days=1),
+                'delivery_time': timezone.time(14, 30),
                 'file_url': 'https://drive.google.com/file/d/ejemplo1',
                 'feedback': 'Excelente trabajo. Los pasos están bien explicados.',
-                'grade': 'A',
+                'grade': Decimal('9.50'),
             }
         )
 
@@ -127,6 +132,7 @@ class Command(BaseCommand):
             defaults={
                 'revisor': teacher1,
                 'date': today,
+                'delivery_time': timezone.time(16, 45),
                 'file_url': 'https://drive.google.com/file/d/ejemplo2',
                 # Sin feedback aún (pendiente de calificar)
             }
@@ -138,9 +144,10 @@ class Command(BaseCommand):
             defaults={
                 'revisor': teacher2,
                 'date': today - timedelta(days=2),
+                'delivery_time': timezone.time(17, 15),
                 'file_url': 'https://drive.google.com/file/d/ejemplo3',
                 'feedback': 'Buen análisis, pero podría profundizar más en el tema central.',
-                'grade': 'B',
+                'grade': Decimal('7.80'),
             }
         )
 
