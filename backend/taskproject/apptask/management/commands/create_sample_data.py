@@ -1,161 +1,111 @@
 from django.core.management.base import BaseCommand
-from django.utils import timezone
-from datetime import timedelta
+from django.contrib.auth import get_user_model
+from apptask.models import SchoolClass, Task, Delivery
+from datetime import date, time, datetime
 from decimal import Decimal
-from apptask.models import User, SchoolClass, Task, Delivery
+import random
 
+User = get_user_model()
 
 class Command(BaseCommand):
-    help = 'Crea datos de prueba para el sistema de tareas'
+    help = 'Creates sample data for testing'
 
     def handle(self, *args, **options):
-        self.stdout.write('Creando datos de prueba...')
-        
-        # Crear profesores
-        teacher1, created = User.objects.get_or_create(
-            username='prof_maria',
+        # Crear usuarios
+        teacher, created = User.objects.get_or_create(
+            email='teacher@test.com',
             defaults={
-                'email': 'maria@school.com',
-                'name': 'María García',
-                'phone': '123456789',
-                'dni': '12345678',
-                'role': 'teacher',
-                'password': 'pbkdf2_sha256$600000$dummy$dummy',
-            }
-        )
-        
-        teacher2, created = User.objects.get_or_create(
-            username='prof_juan',
-            defaults={
-                'email': 'juan@school.com',
-                'name': 'Juan Pérez',
+                'username': 'teacher1',
+                'name': 'Prof. María García',
                 'phone': '987654321',
-                'dni': '87654321',
-                'role': 'teacher',
-                'password': 'pbkdf2_sha256$600000$dummy$dummy',
+                'dni': '12345678',
+                'role': 'teacher'
             }
         )
+        if created:
+            teacher.set_password('password123')
+            teacher.save()
+            self.stdout.write(f'Profesor creado: {teacher.name}')
 
-        # Crear estudiantes
         students = []
         student_data = [
-            ('ana_lopez', 'ana@student.com', 'Ana López', '555-0001', '10001'),
-            ('carlos_ruiz', 'carlos@student.com', 'Carlos Ruiz', '555-0002', '10002'),
-            ('sofia_martin', 'sofia@student.com', 'Sofía Martín', '555-0003', '10003'),
-            ('diego_torres', 'diego@student.com', 'Diego Torres', '555-0004', '10004'),
-            ('lucia_mendez', 'lucia@student.com', 'Lucía Méndez', '555-0005', '10005'),
+            ('student1@test.com', 'student1', 'Juan Pérez', '987654322', '12345679'),
+            ('student2@test.com', 'student2', 'Ana López', '987654323', '12345680'),
+            ('student3@test.com', 'student3', 'Carlos Ruiz', '987654324', '12345681'),
         ]
-        
-        for username, email, name, phone, dni in student_data:
+
+        for email, username, name, phone, dni in student_data:
             student, created = User.objects.get_or_create(
-                username=username,
+                email=email,
                 defaults={
-                    'email': email,
+                    'username': username,
                     'name': name,
                     'phone': phone,
                     'dni': dni,
-                    'role': 'student',
-                    'password': 'pbkdf2_sha256$600000$dummy$dummy',
+                    'role': 'student'
                 }
             )
+            if created:
+                student.set_password('password123')
+                student.save()
+                self.stdout.write(f'Estudiante creado: {student.name}')
             students.append(student)
 
-        # Crear clases
-        class1, created = SchoolClass.objects.get_or_create(
+        # Crear clase
+        school_class, created = SchoolClass.objects.get_or_create(
             identify='MAT-101',
             defaults={
                 'course': 'Matemáticas Básicas',
-                'teacher': teacher1,
+                'teacher': teacher
             }
         )
-        class1.student_list.set(students[:3])  # Primeros 3 estudiantes
-
-        class2, created = SchoolClass.objects.get_or_create(
-            identify='ESP-201',
-            defaults={
-                'course': 'Español Avanzado',
-                'teacher': teacher2,
-            }
-        )
-        class2.student_list.set(students[2:])  # Últimos 3 estudiantes (con overlap)
+        if created:
+            school_class.student_list.set(students)
+            self.stdout.write(f'Clase creada: {school_class.identify}')
 
         # Crear tareas
-        today = timezone.now().date()
-        
-        task1, created = Task.objects.get_or_create(
-            theme='Ecuaciones Lineales',
-            school_class=class1,
-            defaults={
-                'instruction': 'Resolver los ejercicios 1-10 del capítulo 3. Mostrar todo el proceso de resolución paso a paso.',
-                'delivery_date': today + timedelta(days=7),
-                'delivery_time': timezone.time(23, 59),
-            }
-        )
+        tasks_data = [
+            ('Ejercicios de Álgebra', 'Resolver los ejercicios del capítulo 3', date(2025, 7, 15), time(23, 59)),
+            ('Geometría Básica', 'Calcular áreas y perímetros', date(2025, 7, 20), time(18, 0)),
+            ('Estadística Descriptiva', 'Analizar el conjunto de datos proporcionado', date(2025, 7, 25), time(23, 59)),
+        ]
 
-        task2, created = Task.objects.get_or_create(
-            theme='Análisis de Texto',
-            school_class=class2,
-            defaults={
-                'instruction': 'Leer el cuento "El Principito" y escribir un ensayo de 500 palabras sobre sus temas principales.',
-                'delivery_date': today + timedelta(days=5),
-                'delivery_time': timezone.time(18, 30),
-            }
-        )
-        
-        task3, created = Task.objects.get_or_create(
-            theme='Geometría Plana',
-            school_class=class1,
-            defaults={
-                'instruction': 'Calcular el área y perímetro de las figuras geométricas del ejercicio 5.2.',
-                'delivery_date': today + timedelta(days=3),
-                'delivery_time': timezone.time(15, 00),
-            }
-        )
+        tasks = []
+        for theme, instruction, delivery_date, delivery_time in tasks_data:
+            task, created = Task.objects.get_or_create(
+                theme=theme,
+                school_class=school_class,
+                defaults={
+                    'instruction': instruction,
+                    'delivery_date': delivery_date,
+                    'delivery_time': delivery_time
+                }
+            )
+            if created:
+                self.stdout.write(f'Tarea creada: {task.theme}')
+            tasks.append(task)
 
         # Crear algunas entregas
-        delivery1, created = Delivery.objects.get_or_create(
-            task=task1,
-            student=students[0],
-            defaults={
-                'revisor': teacher1,
-                'date': today - timedelta(days=1),
-                'delivery_time': timezone.time(14, 30),
-                'file_url': 'https://drive.google.com/file/d/ejemplo1',
-                'feedback': 'Excelente trabajo. Los pasos están bien explicados.',
-                'grade': Decimal('9.50'),
-            }
-        )
+        deliveries_data = [
+            (tasks[0], students[0], date(2025, 7, 14), time(20, 30), 'http://example.com/file1.pdf', Decimal('8.5')),
+            (tasks[0], students[1], date(2025, 7, 15), time(22, 0), 'http://example.com/file2.pdf', Decimal('9.2')),
+            (tasks[1], students[0], date(2025, 7, 19), time(16, 45), 'http://example.com/file3.pdf', Decimal('7.8')),
+        ]
 
-        delivery2, created = Delivery.objects.get_or_create(
-            task=task1,
-            student=students[1],
-            defaults={
-                'revisor': teacher1,
-                'date': today,
-                'delivery_time': timezone.time(16, 45),
-                'file_url': 'https://drive.google.com/file/d/ejemplo2',
-                # Sin feedback aún (pendiente de calificar)
-            }
-        )
+        for task, student, delivery_date, delivery_time, file_url, grade in deliveries_data:
+            delivery, created = Delivery.objects.get_or_create(
+                task=task,
+                student=student,
+                defaults={
+                    'revisor': teacher,
+                    'date': delivery_date,
+                    'delivery_time': delivery_time,
+                    'file_url': file_url,
+                    'feedback': f'Buen trabajo en {task.theme}',
+                    'grade': grade
+                }
+            )
+            if created:
+                self.stdout.write(f'Entrega creada: {task.theme} - {student.name}')
 
-        delivery3, created = Delivery.objects.get_or_create(
-            task=task2,
-            student=students[2],
-            defaults={
-                'revisor': teacher2,
-                'date': today - timedelta(days=2),
-                'delivery_time': timezone.time(17, 15),
-                'file_url': 'https://drive.google.com/file/d/ejemplo3',
-                'feedback': 'Buen análisis, pero podría profundizar más en el tema central.',
-                'grade': Decimal('7.80'),
-            }
-        )
-
-        self.stdout.write(
-            self.style.SUCCESS('Datos de prueba creados exitosamente!')
-        )
-        self.stdout.write(f'- {len(students)} estudiantes creados')
-        self.stdout.write(f'- 2 profesores creados')
-        self.stdout.write(f'- 2 clases creadas')
-        self.stdout.write(f'- 3 tareas creadas')
-        self.stdout.write(f'- 3 entregas creadas')
+        self.stdout.write(self.style.SUCCESS('Datos de prueba creados exitosamente!'))
