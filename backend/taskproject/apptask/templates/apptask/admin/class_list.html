@@ -1,0 +1,313 @@
+{% extends 'apptask/base.html' %}
+{% block title %}Gestión de Clases - Sistema de Tareas{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1 class="display-6">
+        <i class="bi bi-book text-success"></i> Gestión de Clases
+    </h1>
+    <a href="{% url 'admin_class_create' %}" class="btn btn-success">
+        <i class="bi bi-plus-circle"></i> Nueva Clase
+    </a>
+</div>
+
+<!-- Estadísticas -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card bg-success text-white">
+            <div class="card-body text-center">
+                <h3>{{ classes.count }}</h3>
+                <p class="mb-0">Total Clases</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-info text-white">
+            <div class="card-body text-center">
+                <h3>
+                    {% for class in classes %}
+                        {{ class.student_list.count|add:0 }}
+                    {% empty %}
+                        0
+                    {% endfor %}
+                </h3>
+                <p class="mb-0">Estudiantes Inscritos</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-warning text-dark">
+            <div class="card-body text-center">
+                <h3>
+                    {% for class in classes %}
+                        {{ class.tasks.count|add:0 }}
+                    {% empty %}
+                        0
+                    {% endfor %}
+                </h3>
+                <p class="mb-0">Tareas Asignadas</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-primary text-white">
+            <div class="card-body text-center">
+                <h3>
+                    {% for class in classes %}
+                        {{ class.teacher|default:0 }}
+                    {% empty %}
+                        0
+                    {% endfor %}
+                </h3>
+                <p class="mb-0">Docentes Activos</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Lista de Clases -->
+<div class="card">
+    <div class="card-header">
+        <h5 class="mb-0">
+            <i class="bi bi-list"></i> Lista de Clases
+            <small class="text-muted">({{ classes.count }} total)</small>
+        </h5>
+    </div>
+    <div class="card-body p-0">
+        {% if classes %}
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Identificador</th>
+                            <th>Curso</th>
+                            <th>Docente</th>
+                            <th>Estudiantes</th>
+                            <th>Tareas</th>
+                            <th>Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for class in classes %}
+                        <tr>
+                            <td>
+                                <div class="d-flex align-items-center">
+                                    <i class="bi bi-book fs-4 text-success me-2"></i>
+                                    <div>
+                                        <h6 class="mb-0">{{ class.identify }}</h6>
+                                        <small class="text-muted">Código de clase</small>
+                                    </div>
+                                </div>
+                            </td>
+                            <td>
+                                <strong>{{ class.course }}</strong>
+                            </td>
+                            <td>
+                                <div class="d-flex align-items-center">
+                                    <i class="bi bi-person-badge fs-5 text-info me-2"></i>
+                                    <div>
+                                        <h6 class="mb-0">{{ class.teacher.display_name }}</h6>
+                                        <small class="text-muted">{{ class.teacher.email }}</small>
+                                    </div>
+                                </div>
+                            </td>
+                            <td>
+                                <span class="badge bg-primary">
+                                    <i class="bi bi-people"></i> {{ class.student_list.count }} estudiante{{ class.student_list.count|pluralize }}
+                                </span>
+                                {% if class.student_list.count > 0 %}
+                                    <button type="button" class="btn btn-sm btn-outline-primary ms-1" 
+                                            data-bs-toggle="modal" data-bs-target="#studentsModal{{ class.id }}">
+                                        <i class="bi bi-eye"></i>
+                                    </button>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <span class="badge bg-warning text-dark">
+                                    <i class="bi bi-list-task"></i> {{ class.tasks.count }} tarea{{ class.tasks.count|pluralize }}
+                                </span>
+                            </td>
+                            <td>
+                                <div class="btn-group btn-group-sm" role="group">
+                                    <button type="button" class="btn btn-outline-info" 
+                                            data-bs-toggle="modal" data-bs-target="#classModal{{ class.id }}">
+                                        <i class="bi bi-eye"></i>
+                                    </button>
+                                    <a href="{% url 'admin_class_edit' class.id %}" class="btn btn-outline-warning">
+                                        <i class="bi bi-pencil"></i>
+                                    </a>
+                                    <button type="button" class="btn btn-outline-danger" 
+                                            onclick="confirmDelete({{ class.id }}, '{{ class.identify }}')">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% else %}
+            <div class="text-center p-5">
+                <i class="bi bi-book fs-1 text-muted"></i>
+                <h5 class="mt-3 text-muted">No hay clases creadas</h5>
+                <p class="text-muted">Comienza creando tu primera clase</p>
+                <a href="{% url 'admin_class_create' %}" class="btn btn-success">
+                    <i class="bi bi-plus-circle"></i> Crear Primera Clase
+                </a>
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Modales para ver detalles de clases -->
+{% for class in classes %}
+<div class="modal fade" id="classModal{{ class.id }}" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="bi bi-book"></i> Detalles de {{ class.identify }}
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <h6><i class="bi bi-info-circle text-primary"></i> Información de la Clase</h6>
+                        <table class="table table-sm">
+                            <tr>
+                                <td><strong>Identificador:</strong></td>
+                                <td>{{ class.identify }}</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Curso:</strong></td>
+                                <td>{{ class.course }}</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Docente:</strong></td>
+                                <td>{{ class.teacher.display_name }}</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Email del Docente:</strong></td>
+                                <td>{{ class.teacher.email }}</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Estudiantes Inscritos:</strong></td>
+                                <td>{{ class.student_list.count }}</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Tareas Asignadas:</strong></td>
+                                <td>{{ class.tasks.count }}</td>
+                            </tr>
+                        </table>
+                    </div>
+                    <div class="col-md-6">
+                        <h6><i class="bi bi-people text-success"></i> Estudiantes Inscritos</h6>
+                        {% if class.student_list.count > 0 %}
+                            <div class="list-group list-group-flush" style="max-height: 200px; overflow-y: auto;">
+                                {% for student in class.student_list.all %}
+                                    <div class="list-group-item d-flex justify-content-between align-items-center">
+                                        <div>
+                                            <strong>{{ student.display_name }}</strong><br>
+                                            <small class="text-muted">{{ student.email }}</small>
+                                        </div>
+                                        <span class="badge bg-success">Estudiante</span>
+                                    </div>
+                                {% endfor %}
+                            </div>
+                        {% else %}
+                            <p class="text-muted">No hay estudiantes inscritos en esta clase.</p>
+                        {% endif %}
+                    </div>
+                </div>
+                
+                {% if class.tasks.count > 0 %}
+                    <hr>
+                    <h6><i class="bi bi-list-task text-warning"></i> Tareas Asignadas</h6>
+                    <div class="row">
+                        {% for task in class.tasks.all %}
+                            <div class="col-md-6 mb-2">
+                                <div class="card card-body bg-light">
+                                    <h6 class="card-title mb-1">{{ task.theme }}</h6>
+                                    <p class="card-text small text-muted mb-1">{{ task.instruction|truncatechars:50 }}</p>
+                                    <small class="text-muted">
+                                        <i class="bi bi-calendar"></i> Vence: {{ task.delivery_date|date:"d/m/Y" }}
+                                    </small>
+                                </div>
+                            </div>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+                {% comment %}
+                <a href="{% url 'admin_class_edit' class.id %}" class="btn btn-warning">
+                    <i class="bi bi-pencil"></i> Editar
+                </a>
+                {% endcomment %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal para ver estudiantes de una clase específica -->
+<div class="modal fade" id="studentsModal{{ class.id }}" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="bi bi-people"></i> Estudiantes de {{ class.identify }}
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                {% if class.student_list.count > 0 %}
+                    <div class="list-group">
+                        {% for student in class.student_list.all %}
+                            <div class="list-group-item d-flex justify-content-between align-items-center">
+                                <div>
+                                    <i class="bi bi-person-circle text-primary me-2"></i>
+                                    <strong>{{ student.display_name }}</strong><br>
+                                    <small class="text-muted">{{ student.email }}</small>
+                                </div>
+                                <span class="badge bg-success">Activo</span>
+                            </div>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <p class="text-center text-muted">No hay estudiantes inscritos.</p>
+                {% endif %}
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endfor %}
+<script>
+    function confirmDelete(classId, className) {
+        if (confirm(`¿Estás seguro de que quieres eliminar la clase "${className}"?\n\nEsta acción no se puede deshacer.`)) {
+            // Crear un formulario para enviar la petición DELETE
+            const form = document.createElement('form');
+            form.method = 'post';
+            form.action = `/admin-panel/classes/${classId}/delete/`;
+            
+            // Agregar token CSRF
+            const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]');
+            if (csrfToken) {
+                const csrfInput = document.createElement('input');
+                csrfInput.type = 'hidden';
+                csrfInput.name = 'csrfmiddlewaretoken';
+                csrfInput.value = csrfToken.value;
+                form.appendChild(csrfInput);
+            }
+            
+            document.body.appendChild(form);
+            form.submit();
+        }
+    }
+</script>
+{% endblock %}

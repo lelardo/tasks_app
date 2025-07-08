@@ -1,0 +1,141 @@
+{% extends 'apptask/base.html' %}
+{% block title %}{{ title }} - Sistema de Tareas{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h4 class="mb-0">
+                    <i class="bi bi-person-plus"></i> {{ title }}
+                </h4>
+            </div>
+            <div class="card-body">
+                <form method="post">
+                    {% csrf_token %}
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="first_name" class="form-label">Nombre *</label>
+                                <input type="text" class="form-control" id="first_name" name="first_name" 
+                                       value="{{ form_data.first_name|default:'' }}" required>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="last_name" class="form-label">Apellido</label>
+                                <input type="text" class="form-control" id="last_name" name="last_name" 
+                                       value="{{ form_data.last_name|default:'' }}">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="name" class="form-label">Nombre Completo *</label>
+                                <input type="text" class="form-control" id="name" name="name" 
+                                       value="{{ form_data.name|default:'' }}" required>
+                                <div class="form-text">Este nombre se mostrará en el sistema</div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="username" class="form-label">Nombre de Usuario *</label>
+                                <input type="text" class="form-control" id="username" name="username" 
+                                       value="{{ form_data.username|default:'' }}" required>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="email" class="form-label">Email Institucional *</label>
+                        <input type="email" class="form-control" id="email" name="email" 
+                               value="{{ form_data.email|default:'' }}" 
+                               placeholder="usuario@uni.edu.ec" required>
+                        <div class="form-text">Debe ser del dominio @uni.edu.ec</div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="role" class="form-label">Rol *</label>
+                        <select class="form-select" id="role" name="role" required>
+                            <option value="">Seleccionar rol...</option>
+                            {% for value, label in role_choices %}
+                                <option value="{{ value }}" 
+                                    {% if form_data.role == value %}selected{% endif %}>
+                                    {{ label }}
+                                </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="phone" class="form-label">Teléfono</label>
+                                <input type="tel" class="form-control" id="phone" name="phone" 
+                                       value="{{ form_data.phone|default:'' }}">
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="dni" class="form-label">Cédula</label>
+                                <input type="text" class="form-control" id="dni" name="dni" 
+                                       value="{{ form_data.dni|default:'' }}">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="password" class="form-label">Contraseña *</label>
+                        <input type="password" class="form-control" id="password" name="password" 
+                               required minlength="8">
+                        <div class="form-text">Mínimo 8 caracteres</div>
+                    </div>
+
+                    <div class="d-flex gap-2 justify-content-end">
+                        <a href="{% url 'admin_user_list' %}" class="btn btn-secondary">
+                            <i class="bi bi-arrow-left"></i> Cancelar
+                        </a>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-check"></i> Crear Usuario
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Auto-completar campos relacionados
+    const firstNameInput = document.getElementById('first_name');
+    const lastNameInput = document.getElementById('last_name');
+    const nameInput = document.getElementById('name');
+    const emailInput = document.getElementById('email');
+    const usernameInput = document.getElementById('username');
+
+    function updateRelatedFields() {
+        const firstName = firstNameInput.value.trim();
+        const lastName = lastNameInput.value.trim();
+        
+        if (firstName) {
+            // Auto-completar nombre completo
+            if (!nameInput.value) {
+                nameInput.value = firstName + (lastName ? ' ' + lastName : '');
+            }
+            
+            // Auto-completar username
+            if (!usernameInput.value) {
+                usernameInput.value = firstName.toLowerCase().replace(/\s+/g, '');
+            }
+        }
+    }
+
+    firstNameInput.addEventListener('blur', updateRelatedFields);
+    lastNameInput.addEventListener('blur', updateRelatedFields);
+});
+</script>
+{% endblock %}

@@ -12,6 +12,28 @@ urlpatterns = [
     
     
     path('', views.home, name='home'),
+
+    # === URLs DE ADMINISTRACIÓN (SOLO ADMIN) ===
+    path('admin-panel/', views.admin_dashboard, name='admin_dashboard'),
+    path('admin-panel/users/', views.admin_user_list, name='admin_user_list'),
+    path('admin-panel/users/create/', views.admin_user_create, name='admin_user_create'),
+    # Comentar las que no existen por ahora:
+    # path('admin-panel/users/<int:user_id>/edit/', views.admin_user_edit, name='admin_user_edit'),
+    # path('admin-panel/users/<int:user_id>/toggle/', views.admin_user_toggle_status, name='admin_user_toggle_status'),
+    # path('admin-panel/users/<int:user_id>/reset-password/', views.admin_user_reset_password, name='admin_user_reset_password'),
+    
+    path('admin-panel/classes/', views.admin_class_list, name='admin_class_list'),
+    path('admin-panel/classes/create/', views.admin_class_create, name='admin_class_create'),
+    path('admin-panel/classes/<int:class_id>/edit/', views.admin_class_edit, name='admin_class_edit'),  # Nueva URL
+    path('admin-panel/classes/<int:class_id>/delete/', views.admin_class_delete, name='admin_class_delete'),  # Nueva URL
+    
+    # === URLs PARA DOCENTES ===
+    path('teacher/', views.teacher_dashboard, name='teacher_dashboard'),
+    
+    # === URLs PARA ESTUDIANTES ===
+    path('student/', views.student_dashboard, name='student_dashboard'),
+    path('student/tasks/', views.student_task_list, name='student_task_list'),
+    
     
     # URLs para tareas
     path('tasks/', views.task_list, name='task_list'),
