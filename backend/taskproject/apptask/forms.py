@@ -1,7 +1,6 @@
 from django import forms
 from .models import Task, Delivery, SchoolClass, User
 
-
 class TaskForm(forms.ModelForm):
     class Meta:
         model = Task
@@ -13,7 +12,6 @@ class TaskForm(forms.ModelForm):
             'delivery_date': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
             'delivery_time': forms.TimeInput(attrs={'class': 'form-control', 'type': 'time'}),
         }
-
 
 class DeliveryForm(forms.ModelForm):
     class Meta:
@@ -30,7 +28,6 @@ class DeliveryForm(forms.ModelForm):
         if task:
             # Filtrar solo estudiantes de la clase de la tarea
             self.fields['student'].queryset = task.school_class.student_list.all()
-
 
 class GradeDeliveryForm(forms.ModelForm):
     grade = forms.DecimalField(
