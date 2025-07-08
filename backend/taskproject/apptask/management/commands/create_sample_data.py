@@ -1,6 +1,6 @@
 from django.core.management.base import BaseCommand
 from django.utils import timezone
-from datetime import timedelta
+from datetime import timedelta, time  # Agregar time aquí
 from decimal import Decimal
 from apptask.models import User, SchoolClass, Task, Delivery
 
@@ -11,55 +11,83 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         self.stdout.write('Creando datos de prueba...')
         
+        # Crear administrador
+        admin, created = User.objects.get_or_create(
+            email='admin@uni.edu.ec',
+            defaults={
+                'username': 'admin',
+                'first_name': 'Administrador',
+                'name': 'Administrador Sistema',
+                'role': 'admin',  # Agregar este campo
+                'is_staff': True,
+                'is_superuser': True,
+            }
+        )
+        if created:
+            admin.set_password('admin123')
+            admin.save()
+            self.stdout.write(f'Administrador creado: {admin.email}')
+        
         # Crear profesores
         teacher1, created = User.objects.get_or_create(
-            username='prof_maria',
+            email='maria.garcia@uni.edu.ec',
             defaults={
-                'email': 'maria@school.com',
+                'username': 'prof_maria',
+                'first_name': 'María García',
                 'name': 'María García',
+                'role': 'teacher',  # Agregar este campo
                 'phone': '123456789',
                 'dni': '12345678',
-                'role': 'teacher',
-                'password': 'pbkdf2_sha256$600000$dummy$dummy',
             }
         )
+        if created:
+            teacher1.set_password('teacher123')
+            teacher1.save()
+            self.stdout.write(f'Profesor creado: {teacher1.email}')
         
         teacher2, created = User.objects.get_or_create(
-            username='prof_juan',
+            email='juan.perez@uni.edu.ec',
             defaults={
-                'email': 'juan@school.com',
+                'username': 'prof_juan',
+                'first_name': 'Juan Pérez',
                 'name': 'Juan Pérez',
+                'role': 'teacher',  # Agregar este campo
                 'phone': '987654321',
                 'dni': '87654321',
-                'role': 'teacher',
-                'password': 'pbkdf2_sha256$600000$dummy$dummy',
             }
         )
-
+        if created:
+            teacher2.set_password('teacher123')
+            teacher2.save()
+            self.stdout.write(f'Profesor creado: {teacher2.email}')
+        
         # Crear estudiantes
         students = []
         student_data = [
-            ('ana_lopez', 'ana@student.com', 'Ana López', '555-0001', '10001'),
-            ('carlos_ruiz', 'carlos@student.com', 'Carlos Ruiz', '555-0002', '10002'),
-            ('sofia_martin', 'sofia@student.com', 'Sofía Martín', '555-0003', '10003'),
-            ('diego_torres', 'diego@student.com', 'Diego Torres', '555-0004', '10004'),
-            ('lucia_mendez', 'lucia@student.com', 'Lucía Méndez', '555-0005', '10005'),
+            ('ana.lopez@uni.edu.ec', 'ana_lopez', 'Ana López'),
+            ('carlos.ruiz@uni.edu.ec', 'carlos_ruiz', 'Carlos Ruiz'),
+            ('sofia.martin@uni.edu.ec', 'sofia_martin', 'Sofía Martín'),
+            ('diego.torres@uni.edu.ec', 'diego_torres', 'Diego Torres'),
+            ('lucia.mendez@uni.edu.ec', 'lucia_mendez', 'Lucía Méndez'),
         ]
         
-        for username, email, name, phone, dni in student_data:
+        for email, username, name in student_data:
             student, created = User.objects.get_or_create(
-                username=username,
+                email=email,
                 defaults={
-                    'email': email,
+                    'username': username,
+                    'first_name': name,
                     'name': name,
-                    'phone': phone,
-                    'dni': dni,
-                    'role': 'student',
-                    'password': 'pbkdf2_sha256$600000$dummy$dummy',
+                    'role': 'student',  # Agregar este campo
                 }
             )
+            if created:
+                student.set_password('student123')
+                student.save()
+                self.stdout.write(f'Estudiante creado: {student.email}')
             students.append(student)
-
+        
+        
         # Crear clases
         class1, created = SchoolClass.objects.get_or_create(
             identify='MAT-101',
@@ -83,22 +111,24 @@ class Command(BaseCommand):
         today = timezone.now().date()
         
         task1, created = Task.objects.get_or_create(
-            theme='Ecuaciones Lineales',
-            school_class=class1,
+            theme='Ejercicios de Python',
             defaults={
-                'instruction': 'Resolver los ejercicios 1-10 del capítulo 3. Mostrar todo el proceso de resolución paso a paso.',
-                'delivery_date': today + timedelta(days=7),
-                'delivery_time': timezone.time(23, 59),
+                'instruction': 'Resolver los ejercicios 1-10 del libro de texto',
+                'delivery_date': timezone.now().date() + timedelta(days=7),
+                'delivery_time': time(23, 59),  # Cambiar esta línea
+                'school_class': class1,
             }
         )
-
+        if created:
+            self.stdout.write(f'Tarea creada: {task1.theme}')
+        
         task2, created = Task.objects.get_or_create(
-            theme='Análisis de Texto',
-            school_class=class2,
+            theme='Diseño de Base de Datos',
             defaults={
-                'instruction': 'Leer el cuento "El Principito" y escribir un ensayo de 500 palabras sobre sus temas principales.',
-                'delivery_date': today + timedelta(days=5),
-                'delivery_time': timezone.time(18, 30),
+                'instruction': 'Crear un modelo ER para un sistema de biblioteca',
+                'delivery_date': timezone.now().date() + timedelta(days=10),
+                'delivery_time': time(23, 59),  # Cambiar esta línea
+                'school_class': class2,
             }
         )
         
@@ -108,7 +138,7 @@ class Command(BaseCommand):
             defaults={
                 'instruction': 'Calcular el área y perímetro de las figuras geométricas del ejercicio 5.2.',
                 'delivery_date': today + timedelta(days=3),
-                'delivery_time': timezone.time(15, 00),
+                'delivery_time': time(15, 00),
             }
         )
 
@@ -119,7 +149,7 @@ class Command(BaseCommand):
             defaults={
                 'revisor': teacher1,
                 'date': today - timedelta(days=1),
-                'delivery_time': timezone.time(14, 30),
+                'delivery_time': time(14, 30),
                 'file_url': 'https://drive.google.com/file/d/ejemplo1',
                 'feedback': 'Excelente trabajo. Los pasos están bien explicados.',
                 'grade': Decimal('9.50'),
@@ -132,7 +162,7 @@ class Command(BaseCommand):
             defaults={
                 'revisor': teacher1,
                 'date': today,
-                'delivery_time': timezone.time(16, 45),
+                'delivery_time': time(16, 45),
                 'file_url': 'https://drive.google.com/file/d/ejemplo2',
                 # Sin feedback aún (pendiente de calificar)
             }
@@ -144,7 +174,7 @@ class Command(BaseCommand):
             defaults={
                 'revisor': teacher2,
                 'date': today - timedelta(days=2),
-                'delivery_time': timezone.time(17, 15),
+                'delivery_time': time(17, 15),
                 'file_url': 'https://drive.google.com/file/d/ejemplo3',
                 'feedback': 'Buen análisis, pero podría profundizar más en el tema central.',
                 'grade': Decimal('7.80'),
