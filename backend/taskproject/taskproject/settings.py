@@ -24,7 +24,6 @@ ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
 # Custom User Model - DEBE ESTAR ANTES DE INSTALLED_APPS
 AUTH_USER_MODEL = 'apptask.User'
 
-
 # Application definition
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -38,7 +37,6 @@ INSTALLED_APPS = [
     'rest_framework_simplejwt',
     'rest_framework_simplejwt.token_blacklist',
     'corsheaders',
-
     'apptask',  # Custom app for tasks
 ]
 
@@ -77,7 +75,7 @@ WSGI_APPLICATION = 'taskproject.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': os.getenv('DB_ENGINE', 'django.db.backends.postgresql'),
-        'NAME': os.getenv('DB_NAME', 'tareasbdd'),
+        'NAME': os.getenv('DB_NAME', 'postgres'),
         'USER': os.getenv('DB_USER', 'tareasbdd'),
         'PASSWORD': os.getenv('DB_PASSWORD', 'task@1234'),
         'HOST': os.getenv('DB_HOST', 'basetareas.postgres.database.azure.com'),
@@ -87,7 +85,6 @@ DATABASES = {
         },
     }
 }
-
 
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
@@ -153,34 +150,23 @@ AUTH_PASSWORD_VALIDATORS = [
 ]
 
 # Internationalization
-<<<<<<< HEAD
 LANGUAGE_CODE = 'es-es'
-TIME_ZONE = 'America/Lima'
-=======
-LANGUAGE_CODE = 'en-us'
 TIME_ZONE = 'America/Guayaquil'
->>>>>>> 503f9ccb6aef4de3d763c297300dbd1b53e3150e
 USE_I18N = True
 USE_TZ = True
 
 # Static files (CSS, JavaScript, Images)
 STATIC_URL = 'static/'
-<<<<<<< HEAD
+STATIC_ROOT = BASE_DIR / 'staticfiles'
 STATICFILES_DIRS = [
     BASE_DIR / 'apptask' / 'static',
 ]
-=======
-STATIC_ROOT = BASE_DIR / 'staticfiles'
 
 MEDIA_URL = 'media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
->>>>>>> 503f9ccb6aef4de3d763c297300dbd1b53e3150e
-
 # Default primary key field type
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
-
-AUTH_USER_MODEL = 'apptask.User'
 
 # Security Settings
 SECURE_BROWSER_XSS_FILTER = True
