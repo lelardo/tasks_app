@@ -1,0 +1,166 @@
+{% extends 'apptask/base.html' %}
+{% block title %}Dashboard - Sistema de Tareas{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="jumbotron bg-primary text-white p-4 rounded mb-4">
+                <h1 class="display-4">
+                    <i class="bi bi-book"></i> Sistema de Gestión de Tareas
+                </h1>
+                <p class="lead">Bienvenido, {{ user.first_name|default:user.username }}!</p>
+                <hr class="my-4 bg-white">
+                <p>Rol actual: <span class="badge bg-light text-dark">{{ user.role|default:'Sin rol' }}</span></p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Estadísticas básicas -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card bg-info text-white">
+                <div class="card-body text-center">
+                    <i class="bi bi-person-circle fs-1"></i>
+                    <h5>Mi Perfil</h5>
+                    <p>{{ user.email }}</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-success text-white">
+                <div class="card-body text-center">
+                    <i class="bi bi-list-task fs-1"></i>
+                    <h5>Tareas</h5>
+                    <p>Próximamente</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-warning text-dark">
+                <div class="card-body text-center">
+                    <i class="bi bi-upload fs-1"></i>
+                    <h5>Entregas</h5>
+                    <p>Próximamente</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-danger text-white">
+                <div class="card-body text-center">
+                    <i class="bi bi-gear fs-1"></i>
+                    <h5>Configuración</h5>
+                    <p>Próximamente</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Funcionalidades según rol -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5><i class="bi bi-tools"></i> Funcionalidades Disponibles</h5>
+                </div>
+                <div class="card-body">
+                    {% if user.role == 'admin' %}
+                        <h6><i class="bi bi-shield-check text-danger"></i> Panel de Administrador</h6>
+                        <ul class="list-group list-group-flush">
+                            <li class="list-group-item">✅ Gestión de usuarios (disponible)</li>
+                            <li class="list-group-item">✅ Creación de clases (disponible)</li>
+                            <li class="list-group-item">🔧 Configuración del sistema (en desarrollo)</li>
+                        </ul>
+                        <div class="mt-3">
+                            <a href="/admin-panel/" class="btn btn-danger me-2">
+                                <i class="bi bi-gear"></i> Panel Admin
+                            </a>
+                            <button class="btn btn-outline-secondary" onclick="alert('Función en desarrollo')">
+                                <i class="bi bi-tools"></i> Configuración
+                            </button>
+                        </div>
+                    
+                    {% elif user.role == 'teacher' %}
+                        <h6><i class="bi bi-person-badge text-success"></i> Panel de Docente</h6>
+                        <ul class="list-group list-group-flush">
+                            <li class="list-group-item">🔧 Crear tareas (en desarrollo)</li>
+                            <li class="list-group-item">🔧 Calificar entregas (en desarrollo)</li>
+                            <li class="list-group-item">🔧 Gestionar clases (en desarrollo)</li>
+                        </ul>
+                        <div class="mt-3">
+                            <button class="btn btn-success me-2" onclick="alert('Crear tareas - En desarrollo')">
+                                <i class="bi bi-plus-circle"></i> Nueva Tarea
+                            </button>
+                            <button class="btn btn-outline-success me-2" onclick="alert('Ver tareas - En desarrollo')">
+                                <i class="bi bi-list-task"></i> Mis Tareas
+                            </button>
+                            <button class="btn btn-outline-info" onclick="alert('Calificar - En desarrollo')">
+                                <i class="bi bi-check-circle"></i> Calificar
+                            </button>
+                        </div>
+                    
+                    {% elif user.role == 'student' %}
+                        <h6><i class="bi bi-mortarboard text-info"></i> Panel de Estudiante</h6>
+                        <ul class="list-group list-group-flush">
+                            <li class="list-group-item">🔧 Ver tareas asignadas (en desarrollo)</li>
+                            <li class="list-group-item">🔧 Subir entregas (en desarrollo)</li>
+                            <li class="list-group-item">🔧 Ver calificaciones (en desarrollo)</li>
+                        </ul>
+                        <div class="mt-3">
+                            <button class="btn btn-info me-2" onclick="alert('Ver tareas - En desarrollo')">
+                                <i class="bi bi-list-task"></i> Mis Tareas
+                            </button>
+                            <button class="btn btn-outline-info me-2" onclick="alert('Subir entrega - En desarrollo')">
+                                <i class="bi bi-upload"></i> Subir Entrega
+                            </button>
+                            <button class="btn btn-outline-success" onclick="alert('Ver notas - En desarrollo')">
+                                <i class="bi bi-bar-chart"></i> Mis Notas
+                            </button>
+                        </div>
+                    
+                    {% else %}
+                        <div class="alert alert-warning">
+                            <h6><i class="bi bi-exclamation-triangle"></i> Usuario sin rol definido</h6>
+                            <p>Contacta con el administrador para que te asigne un rol apropiado.</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Información del usuario -->
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5><i class="bi bi-info-circle"></i> Información de la Sesión</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <p><strong>Usuario:</strong> {{ user.username }}</p>
+                            <p><strong>Email:</strong> {{ user.email }}</p>
+                            <p><strong>Nombre:</strong> {{ user.first_name }} {{ user.last_name }}</p>
+                        </div>
+                        <div class="col-md-6">
+                            <p><strong>Rol:</strong> {{ user.role|default:'Sin definir' }}</p>
+                            <p><strong>Último acceso:</strong> {{ user.last_login|date:"d/m/Y H:i"|default:'Primera vez' }}</p>
+                            <p><strong>Cuenta activa:</strong> {% if user.is_active %}Sí{% else %}No{% endif %}</p>
+                        </div>
+                    </div>
+                    <hr>
+                    <div class="d-flex gap-2">
+                        <button class="btn btn-outline-primary" onclick="alert('Editar perfil - En desarrollo')">
+                            <i class="bi bi-pencil"></i> Editar Perfil
+                        </button>
+                        <a href="{% url 'logout' %}" class="btn btn-outline-secondary">
+                            <i class="bi bi-box-arrow-right"></i> Cerrar Sesión
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

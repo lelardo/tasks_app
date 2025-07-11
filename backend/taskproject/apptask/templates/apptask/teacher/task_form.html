@@ -1,0 +1,111 @@
+{% extends 'apptask/base.html' %}
+{% block title %}{{ title }} - Panel Docente{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h4 class="mb-0">
+                    <i class="bi bi-plus-circle"></i> {{ title }}
+                </h4>
+            </div>
+            <div class="card-body">
+                <form method="post">
+                    {% csrf_token %}
+                    
+                    <div class="mb-3">
+                        <label for="theme" class="form-label">
+                            <i class="bi bi-tag"></i> Tema de la Tarea *
+                        </label>
+                        <input type="text" class="form-control" id="theme" name="theme" 
+                               value="{{ form.theme.value|default:'' }}" required
+                               placeholder="Ej: Resolver ejercicios de matemáticas">
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="instruction" class="form-label">
+                            <i class="bi bi-text-paragraph"></i> Instrucciones *
+                        </label>
+                        <textarea class="form-control" id="instruction" name="instruction" 
+                                  rows="5" required
+                                  placeholder="Describe detalladamente qué deben hacer los estudiantes...">{{ form.instruction.value|default:'' }}</textarea>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="school_class" class="form-label">
+                            <i class="bi bi-building"></i> Clase *
+                        </label>
+                        <select class="form-select" id="school_class" name="school_class" required>
+                            <option value="">Selecciona una clase...</option>
+                            {% for class in form.school_class.queryset %}
+                                <option value="{{ class.id }}" 
+                                        {% if form.school_class.value == class.id %}selected{% endif %}>
+                                    {{ class.identify }} - {{ class.course }} ({{ class.student_list.count }} estudiantes)
+                                </option>
+                            {% endfor %}
+                        </select>
+                        {% if not form.school_class.queryset %}
+                            <div class="form-text text-warning">
+                                <i class="bi bi-exclamation-triangle"></i> 
+                                No tienes clases asignadas. Contacta con el administrador.
+                            </div>
+                        {% endif %}
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="delivery_date" class="form-label">
+                                    <i class="bi bi-calendar"></i> Fecha de Entrega *
+                                </label>
+                                <input type="date" class="form-control" id="delivery_date" name="delivery_date" 
+                                       value="{{ form.delivery_date.value|default:'' }}" required>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="delivery_time" class="form-label">
+                                    <i class="bi bi-clock"></i> Hora de Entrega *
+                                </label>
+                                <input type="time" class="form-control" id="delivery_time" name="delivery_time" 
+                                       value="{{ form.delivery_time.value|default:'23:59' }}" required>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle"></i> 
+                        <strong>Nota:</strong> Los estudiantes podrán ver esta tarea una vez que la crees y podrán subir sus entregas hasta la fecha y hora límite especificada.
+                    </div>
+
+                    <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                        <a href="{% url 'teacher_task_list' %}" class="btn btn-secondary">
+                            <i class="bi bi-arrow-left"></i> Cancelar
+                        </a>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-check-circle"></i> Crear Tarea
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Establecer fecha mínima como hoy
+    const dateInput = document.getElementById('delivery_date');
+    const today = new Date().toISOString().split('T')[0];
+    dateInput.min = today;
+    
+    // Si no hay fecha seleccionada, establecer mañana como predeterminado
+    if (!dateInput.value) {
+        const tomorrow = new Date();
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        dateInput.value = tomorrow.toISOString().split('T')[0];
+    }
+});
+</script>
+{% endblock %}

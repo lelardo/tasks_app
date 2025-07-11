@@ -1,258 +1,36 @@
 {% extends 'apptask/base.html' %}
-{% block title %}Mi Perfil - Sistema de Tareas{% endblock %}
+{% block title %}Mi Perfil{% endblock %}
 
 {% block content %}
-<div class="row">
-    <div class="col-md-4">
-        <!-- Información del Usuario -->
-        <div class="card">
-            <div class="card-header bg-primary text-white">
-                <h5 class="mb-0">
-                    <i class="bi bi-person-circle"></i> Información del Usuario
-                </h5>
-            </div>
-            <div class="card-body text-center">
-                <div class="mb-3">
-                    <i class="bi bi-person-circle fs-1 text-primary"></i>
-                </div>
-                <h4>{{ user.display_name }}</h4>
-                <p class="text-muted">{{ user.email }}</p>
-                <span class="badge bg-primary fs-6">{{ user.role_display }}</span>
-                <hr>
-                <small class="text-muted">
-                    <i class="bi bi-calendar"></i> 
-                    Miembro desde: {{ user.date_joined|date:"d/m/Y" }}
-                </small>
-            </div>
-        </div>
-
-        <!-- Estadísticas (si es estudiante o docente) -->
-        {% if user.role == 'student' %}
-        <div class="card mt-3">
-            <div class="card-header bg-info text-white">
-                <h6 class="mb-0"><i class="bi bi-graph-up"></i> Mis Estadísticas</h6>
-            </div>
-            <div class="card-body">
-                <div class="row text-center">
-                    <div class="col-6">
-                        <h4>{{ user.deliveries.count }}</h4>
-                        <small>Entregas</small>
-                    </div>
-                    <div class="col-6">
-                        <h4>{{ user.classes.count }}</h4>
-                        <small>Clases</small>
-                    </div>
-                </div>
-            </div>
-        </div>
-        {% elif user.role == 'teacher' %}
-        <div class="card mt-3">
-            <div class="card-header bg-success text-white">
-                <h6 class="mb-0"><i class="bi bi-graph-up"></i> Mis Estadísticas</h6>
-            </div>
-            <div class="card-body">
-                <div class="row text-center">
-                    <div class="col-4">
-                        <h4>{{ user.taught_classes.count }}</h4>
-                        <small>Clases</small>
-                    </div>
-                    <div class="col-4">
-                        <h4>{{ total_tasks }}</h4>
-                        <small>Tareas</small>
-                    </div>
-                    <div class="col-4">
-                        <h4>{{ total_deliveries }}</h4>
-                        <small>Entregas</small>
-                    </div>
-                </div>
-            </div>
-        </div>
-        {% endif %}
-    </div>
-
+<div class="row justify-content-center">
     <div class="col-md-8">
-        <!-- Formulario de Edición de Datos -->
         <div class="card">
-            <div class="card-header bg-secondary text-white d-flex justify-content-between align-items-center">
-                <h5 class="mb-0">
-                    <i class="bi bi-pencil-square"></i> Editar Información Personal
-                </h5>
-                <button type="button" class="btn btn-sm btn-outline-light" id="toggleEdit">
-                    <i class="bi bi-pencil"></i> Editar
-                </button>
+            <div class="card-header">
+                <h4><i class="bi bi-person-circle"></i> Mi Perfil</h4>
             </div>
             <div class="card-body">
-                <form method="post" id="profileForm">
-                    {% csrf_token %}
-                    
-                    <div class="row">
-                        <div class="col-md-6">
-                            <div class="mb-3">
-                                <label for="first_name" class="form-label">Nombre</label>
-                                <input type="text" class="form-control" id="first_name" name="first_name" 
-                                       value="{{ user.first_name }}" disabled>
-                            </div>
-                        </div>
-                        <div class="col-md-6">
-                            <div class="mb-3">
-                                <label for="last_name" class="form-label">Apellido</label>
-                                <input type="text" class="form-control" id="last_name" name="last_name" 
-                                       value="{{ user.last_name }}" disabled>
-                            </div>
-                        </div>
+                <div class="row">
+                    <div class="col-md-6">
+                        <p><strong>Usuario:</strong> {{ user.username }}</p>
+                        <p><strong>Email:</strong> {{ user.email }}</p>
+                        <p><strong>Nombre:</strong> {{ user.first_name }} {{ user.last_name }}</p>
                     </div>
-
-                    <div class="row">
-                        <div class="col-md-6">
-                            <div class="mb-3">
-                                <label for="name" class="form-label">Nombre Completo</label>
-                                <input type="text" class="form-control" id="name" name="name" 
-                                       value="{{ user.name }}" disabled>
-                            </div>
-                        </div>
-                        <div class="col-md-6">
-                            <div class="mb-3">
-                                <label for="username" class="form-label">Nombre de Usuario</label>
-                                <input type="text" class="form-control" id="username" name="username" 
-                                       value="{{ user.username }}" disabled>
-                            </div>
-                        </div>
+                    <div class="col-md-6">
+                        <p><strong>Rol:</strong> {{ user.role|default:'Sin definir' }}</p>
+                        <p><strong>Último acceso:</strong> {{ user.last_login|date:"d/m/Y H:i"|default:'Primera vez' }}</p>
+                        <p><strong>Cuenta activa:</strong> {% if user.is_active %}Sí{% else %}No{% endif %}</p>
                     </div>
-
-                    <div class="mb-3">
-                        <label for="email" class="form-label">Email Institucional</label>
-                        <input type="email" class="form-control" id="email" name="email" 
-                               value="{{ user.email }}" disabled>
-                        <div class="form-text">El email no se puede modificar.</div>
-                    </div>
-
-                    <div class="row">
-                        <div class="col-md-6">
-                            <div class="mb-3">
-                                <label for="phone" class="form-label">Teléfono</label>
-                                <input type="tel" class="form-control" id="phone" name="phone" 
-                                       value="{{ user.phone }}" disabled>
-                            </div>
-                        </div>
-                        <div class="col-md-6">
-                            <div class="mb-3">
-                                <label for="dni" class="form-label">Cédula</label>
-                                <input type="text" class="form-control" id="dni" name="dni" 
-                                       value="{{ user.dni }}" disabled>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="mb-3">
-                        <label for="role" class="form-label">Rol</label>
-                        <input type="text" class="form-control" id="role" 
-                               value="{{ user.role_display }}" disabled>
-                        <div class="form-text">El rol no se puede modificar.</div>
-                    </div>
-
-                    <div class="d-none" id="saveButtons">
-                        <hr>
-                        <div class="d-flex gap-2">
-                            <button type="submit" class="btn btn-success">
-                                <i class="bi bi-check2"></i> Guardar Cambios
-                            </button>
-                            <button type="button" class="btn btn-secondary" id="cancelEdit">
-                                <i class="bi bi-x"></i> Cancelar
-                            </button>
-                        </div>
-                    </div>
-                </form>
-            </div>
-        </div>
-
-        <!-- Cambiar Contraseña -->
-        <div class="card mt-3">
-            <div class="card-header bg-warning text-dark">
-                <h6 class="mb-0">
-                    <i class="bi bi-shield-lock"></i> Cambiar Contraseña
-                </h6>
-            </div>
-            <div class="card-body">
-                <form method="post" action="{% url 'change_password' %}">
-                    {% csrf_token %}
-                    
-                    <div class="mb-3">
-                        <label for="current_password" class="form-label">Contraseña Actual</label>
-                        <input type="password" class="form-control" id="current_password" 
-                               name="current_password" required>
-                    </div>
-                    
-                    <div class="row">
-                        <div class="col-md-6">
-                            <div class="mb-3">
-                                <label for="new_password" class="form-label">Nueva Contraseña</label>
-                                <input type="password" class="form-control" id="new_password" 
-                                       name="new_password" required>
-                            </div>
-                        </div>
-                        <div class="col-md-6">
-                            <div class="mb-3">
-                                <label for="confirm_password" class="form-label">Confirmar Nueva Contraseña</label>
-                                <input type="password" class="form-control" id="confirm_password" 
-                                       name="confirm_password" required>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <button type="submit" class="btn btn-warning">
-                        <i class="bi bi-shield-check"></i> Cambiar Contraseña
-                    </button>
-                </form>
+                </div>
+                <hr>
+                <div class="alert alert-info">
+                    <i class="bi bi-info-circle"></i> 
+                    La edición de perfil estará disponible próximamente.
+                </div>
+                <a href="{% url 'home' %}" class="btn btn-primary">
+                    <i class="bi bi-arrow-left"></i> Volver al Dashboard
+                </a>
             </div>
         </div>
     </div>
 </div>
-
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    const toggleBtn = document.getElementById('toggleEdit');
-    const cancelBtn = document.getElementById('cancelEdit');
-    const saveButtons = document.getElementById('saveButtons');
-    const formInputs = document.querySelectorAll('#profileForm input:not([name="email"], [name="role"])');
-    
-    let originalValues = {};
-    
-    // Guardar valores originales
-    formInputs.forEach(input => {
-        originalValues[input.name] = input.value;
-    });
-    
-    toggleBtn.addEventListener('click', function() {
-        const isEditing = !formInputs[0].disabled;
-        
-        if (isEditing) {
-            // Cancelar edición
-            formInputs.forEach(input => {
-                input.disabled = true;
-                input.value = originalValues[input.name];
-            });
-            saveButtons.classList.add('d-none');
-            toggleBtn.innerHTML = '<i class="bi bi-pencil"></i> Editar';
-        } else {
-            // Habilitar edición
-            formInputs.forEach(input => {
-                if (input.name !== 'email') {
-                    input.disabled = false;
-                }
-            });
-            saveButtons.classList.remove('d-none');
-            toggleBtn.innerHTML = '<i class="bi bi-x"></i> Cancelar';
-        }
-    });
-    
-    cancelBtn.addEventListener('click', function() {
-        formInputs.forEach(input => {
-            input.disabled = true;
-            input.value = originalValues[input.name];
-        });
-        saveButtons.classList.add('d-none');
-        toggleBtn.innerHTML = '<i class="bi bi-pencil"></i> Editar';
-    });
-});
-</script>
 {% endblock %}

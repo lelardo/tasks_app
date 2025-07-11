@@ -1,0 +1,126 @@
+{% extends 'apptask/base.html' %}
+{% block title %}Mis Tareas - Panel Docente{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1>
+        <i class="bi bi-list-task text-primary"></i> Mis Tareas
+    </h1>
+    <div class="btn-group">
+        <a href="{% url 'teacher_task_create' %}" class="btn btn-primary">
+            <i class="bi bi-plus-circle"></i> Nueva Tarea
+        </a>
+        <a href="{% url 'teacher_dashboard' %}" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left"></i> Volver al Dashboard
+        </a>
+    </div>
+</div>
+
+<!-- Filtros -->
+<div class="card mb-4">
+    <div class="card-body">
+        <form method="get" class="row g-3">
+            <div class="col-md-4">
+                <label for="class" class="form-label">Filtrar por Clase</label>
+                <select name="class" id="class" class="form-select">
+                    <option value="">Todas las clases</option>
+                    {% for class in my_classes %}
+                        <option value="{{ class.id }}" {% if current_class == class.id|stringformat:"s" %}selected{% endif %}>
+                            {{ class.identify }} - {{ class.course }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-6">
+                <label for="search" class="form-label">Buscar</label>
+                <input type="text" name="search" id="search" class="form-control" 
+                       placeholder="Buscar por tema o descripción...">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">&nbsp;</label>
+                <div class="d-grid">
+                    <button type="submit" class="btn btn-outline-primary">
+                        <i class="bi bi-search"></i> Buscar
+                    </button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Lista de Tareas -->
+<div class="row">
+    {% if tasks %}
+        {% for task in tasks %}
+            <div class="col-md-6 col-lg-4 mb-4">
+                <div class="card h-100">
+                    <div class="card-header 
+                        {% if task.is_overdue %}bg-danger{% else %}bg-primary{% endif %} 
+                        text-white">
+                        <h5 class="card-title mb-0">{{ task.theme }}</h5>
+                    </div>
+                    <div class="card-body">
+                        <p class="card-text">
+                            {{ task.instruction|truncatewords:15 }}
+                        </p>
+                        <div class="mb-2">
+                            <small class="text-muted">
+                                <i class="bi bi-building"></i> <strong>Clase:</strong> {{ task.school_class.identify }}
+                            </small>
+                        </div>
+                        <div class="mb-2">
+                            <small class="text-muted">
+                                <i class="bi bi-calendar"></i> <strong>Vence:</strong> {{ task.delivery_date }} {{ task.delivery_time }}
+                            </small>
+                        </div>
+                        <div class="mb-2">
+                            <small class="text-muted">
+                                <i class="bi bi-upload"></i> <strong>Entregas:</strong> {{ task.delivery_list.count }}
+                            </small>
+                        </div>
+                        
+                        <!-- Estado de la tarea -->
+                        {% if task.is_overdue %}
+                            <div class="alert alert-danger py-2">
+                                <i class="bi bi-exclamation-triangle"></i> Vencida
+                            </div>
+                        {% else %}
+                            <div class="alert alert-success py-2">
+                                <i class="bi bi-check-circle"></i> Activa
+                            </div>
+                        {% endif %}
+                    </div>
+                    <div class="card-footer bg-transparent">
+                        <div class="d-flex gap-2">
+                            <a href="{% url 'teacher_task_detail' task.id %}" class="btn btn-outline-primary btn-sm flex-fill">
+                                <i class="bi bi-eye"></i> Ver Detalles
+                            </a>
+                            <button class="btn btn-outline-warning btn-sm" onclick="alert('Editar tarea en desarrollo')">
+                                <i class="bi bi-pencil"></i> Editar
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        {% endfor %}
+    {% else %}
+        <div class="col-12">
+            <div class="text-center py-5">
+                <i class="bi bi-inbox display-1 text-muted"></i>
+                <h3 class="text-muted mt-3">No tienes tareas creadas</h3>
+                {% if current_class %}
+                    <p class="text-muted">No hay tareas para la clase seleccionada</p>
+                    <a href="{% url 'teacher_task_list' %}" class="btn btn-outline-primary me-2">
+                        <i class="bi bi-arrow-clockwise"></i> Ver todas las tareas
+                    </a>
+                {% else %}
+                    <p class="text-muted">Comienza creando tu primera tarea</p>
+                {% endif %}
+                <a href="{% url 'teacher_task_create' %}" class="btn btn-primary">
+                    <i class="bi bi-plus-circle"></i> Crear Primera Tarea
+                </a>
+            </div>
+        </div>
+    {% endif %}
+</div>
+{% endblock %}

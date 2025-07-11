@@ -6,12 +6,12 @@
     <h1 class="display-6">
         <i class="bi bi-book text-success"></i> Gestión de Clases
     </h1>
-    <a href="{% url 'admin_class_create' %}" class="btn btn-success">
+    <button class="btn btn-success" onclick="alert('Función crear clase en desarrollo')">
         <i class="bi bi-plus-circle"></i> Nueva Clase
-    </a>
+    </button>
 </div>
 
-<!-- Estadísticas -->
+<!-- Estadísticas corregidas -->
 <div class="row mb-4">
     <div class="col-md-3">
         <div class="card bg-success text-white">
@@ -24,27 +24,15 @@
     <div class="col-md-3">
         <div class="card bg-info text-white">
             <div class="card-body text-center">
-                <h3>
-                    {% for class in classes %}
-                        {{ class.student_list.count|add:0 }}
-                    {% empty %}
-                        0
-                    {% endfor %}
-                </h3>
-                <p class="mb-0">Estudiantes Inscritos</p>
+                <h3>{{ total_students }}</h3>
+                <p class="mb-0">Estudiantes</p>
             </div>
         </div>
     </div>
     <div class="col-md-3">
         <div class="card bg-warning text-dark">
             <div class="card-body text-center">
-                <h3>
-                    {% for class in classes %}
-                        {{ class.tasks.count|add:0 }}
-                    {% empty %}
-                        0
-                    {% endfor %}
-                </h3>
+                <h3>{{ total_tasks }}</h3>
                 <p class="mb-0">Tareas Asignadas</p>
             </div>
         </div>
@@ -52,14 +40,8 @@
     <div class="col-md-3">
         <div class="card bg-primary text-white">
             <div class="card-body text-center">
-                <h3>
-                    {% for class in classes %}
-                        {{ class.teacher|default:0 }}
-                    {% empty %}
-                        0
-                    {% endfor %}
-                </h3>
-                <p class="mb-0">Docentes Activos</p>
+                <h3>{{ total_teachers }}</h3>
+                <p class="mb-0">Docentes</p>
             </div>
         </div>
     </div>
@@ -115,12 +97,6 @@
                                 <span class="badge bg-primary">
                                     <i class="bi bi-people"></i> {{ class.student_list.count }} estudiante{{ class.student_list.count|pluralize }}
                                 </span>
-                                {% if class.student_list.count > 0 %}
-                                    <button type="button" class="btn btn-sm btn-outline-primary ms-1" 
-                                            data-bs-toggle="modal" data-bs-target="#studentsModal{{ class.id }}">
-                                        <i class="bi bi-eye"></i>
-                                    </button>
-                                {% endif %}
                             </td>
                             <td>
                                 <span class="badge bg-warning text-dark">
@@ -130,14 +106,17 @@
                             <td>
                                 <div class="btn-group btn-group-sm" role="group">
                                     <button type="button" class="btn btn-outline-info" 
-                                            data-bs-toggle="modal" data-bs-target="#classModal{{ class.id }}">
+                                            onclick="alert('Ver detalles en desarrollo')">
                                         <i class="bi bi-eye"></i>
                                     </button>
-                                    <a href="{% url 'admin_class_edit' class.id %}" class="btn btn-outline-warning">
+                                    <button type="button" class="btn btn-outline-warning"
+                                            onclick="alert('Función de editar clase en desarrollo')" 
+                                            title="Editar clase">
                                         <i class="bi bi-pencil"></i>
-                                    </a>
+                                    </button>
                                     <button type="button" class="btn btn-outline-danger" 
-                                            onclick="confirmDelete({{ class.id }}, '{{ class.identify }}')">
+                                            onclick="alert('Función de eliminar clase en desarrollo')" 
+                                            title="Eliminar clase">
                                         <i class="bi bi-trash"></i>
                                     </button>
                                 </div>
@@ -151,10 +130,10 @@
             <div class="text-center p-5">
                 <i class="bi bi-book fs-1 text-muted"></i>
                 <h5 class="mt-3 text-muted">No hay clases creadas</h5>
-                <p class="text-muted">Comienza creando tu primera clase</p>
-                <a href="{% url 'admin_class_create' %}" class="btn btn-success">
+                <p class="text-muted">Las clases aparecerán aquí cuando se creen</p>
+                <button class="btn btn-success" onclick="alert('Función crear clase en desarrollo')">
                     <i class="bi bi-plus-circle"></i> Crear Primera Clase
-                </a>
+                </button>
             </div>
         {% endif %}
     </div>
@@ -221,7 +200,7 @@
                         {% endif %}
                     </div>
                 </div>
-                
+
                 {% if class.tasks.count > 0 %}
                     <hr>
                     <h6><i class="bi bi-list-task text-warning"></i> Tareas Asignadas</h6>
@@ -242,11 +221,6 @@
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
-                {% comment %}
-                <a href="{% url 'admin_class_edit' class.id %}" class="btn btn-warning">
-                    <i class="bi bi-pencil"></i> Editar
-                </a>
-                {% endcomment %}
             </div>
         </div>
     </div>
@@ -289,25 +263,7 @@
 {% endfor %}
 <script>
     function confirmDelete(classId, className) {
-        if (confirm(`¿Estás seguro de que quieres eliminar la clase "${className}"?\n\nEsta acción no se puede deshacer.`)) {
-            // Crear un formulario para enviar la petición DELETE
-            const form = document.createElement('form');
-            form.method = 'post';
-            form.action = `/admin-panel/classes/${classId}/delete/`;
-            
-            // Agregar token CSRF
-            const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]');
-            if (csrfToken) {
-                const csrfInput = document.createElement('input');
-                csrfInput.type = 'hidden';
-                csrfInput.name = 'csrfmiddlewaretoken';
-                csrfInput.value = csrfToken.value;
-                form.appendChild(csrfInput);
-            }
-            
-            document.body.appendChild(form);
-            form.submit();
-        }
+        alert('Función de eliminar clase en desarrollo');
     }
 </script>
 {% endblock %}
