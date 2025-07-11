@@ -1,0 +1,234 @@
+{% extends 'apptask/base.html' %}
+{% block title %}{{ title }} - Sistema de Tareas{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header bg-success text-white">
+                <h4 class="mb-0">
+                    <i class="bi bi-book"></i> {{ title }}
+                </h4>
+            </div>
+            <div class="card-body">
+                <form method="post">
+                    {% csrf_token %}
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="identify" class="form-label">
+                                    <i class="bi bi-tag"></i> Identificador de la Clase *
+                                </label>
+                                <input type="text" class="form-control" id="identify" name="identify" 
+                                       value="{{ form_data.identify|default:'' }}" required
+                                       placeholder="Ej: PROG-101, MAT-201">
+                                <div class="form-text">Código único para identificar la clase</div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="course" class="form-label">
+                                    <i class="bi bi-book"></i> Nombre del Curso *
+                                </label>
+                                <input type="text" class="form-control" id="course" name="course" 
+                                       value="{{ form_data.course|default:'' }}" required
+                                       placeholder="Ej: Programación I, Matemáticas Básicas">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="teacher" class="form-label">
+                            <i class="bi bi-person-badge"></i> Docente Asignado *
+                        </label>
+                        <select class="form-select" id="teacher" name="teacher" required>
+                            <option value="">Selecciona un docente...</option>
+                            {% for teacher in teachers %}
+                                <option value="{{ teacher.id }}" 
+                                        {% if form_data.teacher == teacher.id|stringformat:"s" %}selected{% endif %}>
+                                    {{ teacher.display_name }} ({{ teacher.email }})
+                                </option>
+                            {% endfor %}
+                        </select>
+                        {% if not teachers %}
+                            <div class="form-text text-warning">
+                                <i class="bi bi-exclamation-triangle"></i> 
+                                No hay docentes registrados. 
+                                <a href="{% url 'admin_user_create' %}" class="text-decoration-none">Crear un docente</a>
+                            </div>
+                        {% endif %}
+                    </div>
+
+                    <div class="mb-4">
+                        <label class="form-label">
+                            <i class="bi bi-people"></i> Estudiantes de la Clase
+                        </label>
+                        <div class="form-text mb-3">
+                            Selecciona los estudiantes que participarán en esta clase:
+                        </div>
+                        
+                        {% if students %}
+                            <div class="border rounded p-3" style="max-height: 300px; overflow-y: auto;">
+                                <div class="row">
+                                    <div class="col-12 mb-3">
+                                        <div class="d-flex gap-2">
+                                            <button type="button" class="btn btn-sm btn-outline-primary" onclick="selectAllStudents()">
+                                                <i class="bi bi-check-all"></i> Seleccionar Todos
+                                            </button>
+                                            <button type="button" class="btn btn-sm btn-outline-secondary" onclick="deselectAllStudents()">
+                                                <i class="bi bi-x-square"></i> Deseleccionar Todos
+                                            </button>
+                                            <span class="ms-auto text-muted">
+                                                <span id="selectedCount">0</span> de {{ students.count }} seleccionados
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="row">
+                                    {% for student in students %}
+                                        <div class="col-md-6 mb-2">
+                                            <div class="form-check">
+                                                <input class="form-check-input student-checkbox" 
+                                                       type="checkbox" 
+                                                       value="{{ student.id }}" 
+                                                       id="student{{ student.id }}" 
+                                                       name="students"
+                                                       {% if form_data.students and student.id in form_data.students %}checked{% endif %}>
+                                                <label class="form-check-label w-100" for="student{{ student.id }}">
+                                                    <div class="d-flex align-items-center">
+                                                        <i class="bi bi-person-circle text-primary me-2"></i>
+                                                        <div>
+                                                            <strong>{{ student.display_name }}</strong><br>
+                                                            <small class="text-muted">{{ student.email }}</small>
+                                                        </div>
+                                                    </div>
+                                                </label>
+                                            </div>
+                                        </div>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                        {% else %}
+                            <div class="alert alert-warning">
+                                <i class="bi bi-exclamation-triangle"></i> 
+                                No hay estudiantes registrados en el sistema. 
+                                <a href="{% url 'admin_user_create' %}" class="alert-link">Crear estudiantes</a> 
+                                primero para poder asignarlos a esta clase.
+                            </div>
+                        {% endif %}
+                    </div>
+
+                    <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                        <a href="{% url 'admin_class_list' %}" class="btn btn-secondary">
+                            <i class="bi bi-arrow-left"></i> Cancelar
+                        </a>
+                        <button type="submit" class="btn btn-success">
+                            <i class="bi bi-check-circle"></i> 
+                            {% if title == 'Crear Nueva Clase' %}Crear Clase{% else %}Actualizar Clase{% endif %}
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Contar estudiantes seleccionados al cargar la página
+    updateSelectedCount();
+    
+    // Agregar event listener a todos los checkboxes
+    const checkboxes = document.querySelectorAll('.student-checkbox');
+    checkboxes.forEach(checkbox => {
+        checkbox.addEventListener('change', updateSelectedCount);
+    });
+});
+
+function selectAllStudents() {
+    const checkboxes = document.querySelectorAll('.student-checkbox');
+    checkboxes.forEach(checkbox => {
+        checkbox.checked = true;
+    });
+    updateSelectedCount();
+}
+
+function deselectAllStudents() {
+    const checkboxes = document.querySelectorAll('.student-checkbox');
+    checkboxes.forEach(checkbox => {
+        checkbox.checked = false;
+    });
+    updateSelectedCount();
+}
+
+function updateSelectedCount() {
+    const checkedBoxes = document.querySelectorAll('.student-checkbox:checked');
+    const countElement = document.getElementById('selectedCount');
+    if (countElement) {
+        countElement.textContent = checkedBoxes.length;
+    }
+}
+
+// Validación del formulario
+document.querySelector('form').addEventListener('submit', function(e) {
+    const identify = document.getElementById('identify').value.trim();
+    const course = document.getElementById('course').value.trim();
+    const teacher = document.getElementById('teacher').value;
+    
+    if (!identify || !course || !teacher) {
+        e.preventDefault();
+        alert('Por favor completa todos los campos obligatorios.');
+        return false;
+    }
+    
+    // Verificar que el identificador tenga un formato válido
+    const identifyPattern = /^[A-Z]{2,4}-\d{3}$/;
+    if (!identifyPattern.test(identify)) {
+        e.preventDefault();
+        alert('El identificador debe tener el formato: XXX-000 (Ej: PROG-101)');
+        document.getElementById('identify').focus();
+        return false;
+    }
+});
+
+// Auto-formatear el identificador mientras el usuario escribe
+document.getElementById('identify').addEventListener('input', function(e) {
+    let value = e.target.value.toUpperCase();
+    
+    // Remover caracteres no válidos
+    value = value.replace(/[^A-Z0-9-]/g, '');
+    
+    // Aplicar formato automático
+    if (value.length > 0 && !value.includes('-') && value.length > 3) {
+        value = value.substring(0, value.length - 3) + '-' + value.substring(value.length - 3);
+    }
+    
+    e.target.value = value;
+});
+</script>
+
+<style>
+.form-check-label {
+    cursor: pointer;
+    padding: 8px;
+    border-radius: 4px;
+    transition: background-color 0.2s;
+}
+
+.form-check-label:hover {
+    background-color: #f8f9fa;
+}
+
+.form-check-input:checked + .form-check-label {
+    background-color: #e3f2fd;
+    border: 1px solid #2196f3;
+}
+
+.student-checkbox {
+    transform: scale(1.2);
+    margin-right: 8px;
+}
+</style>
+{% endblock %}

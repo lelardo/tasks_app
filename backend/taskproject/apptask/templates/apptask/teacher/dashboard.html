@@ -1,0 +1,278 @@
+{% extends 'apptask/base.html' %}
+{% block title %}Dashboard Docente - Sistema de Tareas{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h1 class="display-4">
+                <i class="bi bi-person-badge text-success"></i> Panel del Docente
+            </h1>
+            <div class="btn-group">
+                <a href="{% url 'teacher_task_create' %}" class="btn btn-primary btn-lg">
+                    <i class="bi bi-plus-circle"></i> Nueva Tarea
+                </a>
+                <a href="{% url 'teacher_task_list' %}" class="btn btn-outline-primary">
+                    <i class="bi bi-list-task"></i> Todas mis Tareas
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Estadísticas del docente -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card bg-primary text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h5 class="card-title">Mis Clases</h5>
+                        <h2 class="mb-0">{{ my_classes.count }}</h2>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="bi bi-book fs-1"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-success text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h5 class="card-title">Total Tareas</h5>
+                        <h2 class="mb-0">{{ total_tasks }}</h2>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="bi bi-journal-text fs-1"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-warning text-dark">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h5 class="card-title">Por Revisar</h5>
+                        <h2 class="mb-0">{{ pending_deliveries }}</h2>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="bi bi-clock fs-1"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-info text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h5 class="card-title">Calificadas</h5>
+                        <h2 class="mb-0">{{ graded_deliveries }}</h2>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="bi bi-check-circle fs-1"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <!-- Mis Clases -->
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">
+                    <i class="bi bi-book text-success"></i> Mis Clases
+                </h5>
+                <span class="badge bg-success">{{ my_classes.count }}</span>
+            </div>
+            <div class="card-body">
+                {% if my_classes %}
+                    {% for class in my_classes %}
+                        <div class="d-flex justify-content-between align-items-start border-bottom pb-2 mb-2">
+                            <div class="flex-grow-1">
+                                <h6 class="mb-1">{{ class.identify }}</h6>
+                                <p class="text-muted mb-1">{{ class.course }}</p>
+                                <small class="text-muted">
+                                    <i class="bi bi-people"></i> {{ class.student_list.count }} estudiantes
+                                </small>
+                            </div>
+                            <span class="badge bg-secondary">
+                                {{ class.tasks.count }} tareas
+                            </span>
+                        </div>
+                    {% endfor %}
+                    <div class="text-center mt-3">
+                        <small class="text-muted">Gestiona tus clases desde el panel administrativo</small>
+                    </div>
+                {% else %}
+                    <div class="text-center text-muted py-4">
+                        <i class="bi bi-book fs-1"></i>
+                        <p class="mt-2">No tienes clases asignadas</p>
+                        <small>Contacta con el administrador para que te asignen clases</small>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Tareas Recientes -->
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">
+                    <i class="bi bi-journal-text text-primary"></i> Tareas Recientes
+                </h5>
+                <a href="{% url 'teacher_task_list' %}" class="btn btn-sm btn-outline-primary">Ver todas</a>
+            </div>
+            <div class="card-body">
+                {% if tasks %}
+                    {% for task in tasks %}
+                        <div class="d-flex justify-content-between align-items-start border-bottom pb-2 mb-2">
+                            <div class="flex-grow-1">
+                                <h6 class="mb-1">
+                                    <a href="{% url 'teacher_task_detail' task.id %}" class="text-decoration-none">
+                                        {{ task.theme }}
+                                    </a>
+                                </h6>
+                                <small class="text-muted">
+                                    <i class="bi bi-calendar"></i> Vence: {{ task.delivery_date|date:"d/m" }}
+                                    | <i class="bi bi-building"></i> {{ task.school_class.identify }}
+                                </small>
+                            </div>
+                            <div class="d-flex flex-column align-items-end">
+                                <span class="badge bg-info badge-status mb-1">
+                                    {{ task.delivery_list.count }} entregas
+                                </span>
+                                {% if task.is_overdue %}
+                                    <span class="badge bg-danger">Vencida</span>
+                                {% else %}
+                                    <span class="badge bg-success">Activa</span>
+                                {% endif %}
+                            </div>
+                        </div>
+                    {% endfor %}
+                    <div class="text-center mt-3">
+                        <a href="{% url 'teacher_task_create' %}" class="btn btn-sm btn-success">
+                            <i class="bi bi-plus"></i> Nueva Tarea
+                        </a>
+                    </div>
+                {% else %}
+                    <div class="text-center text-muted py-4">
+                        <i class="bi bi-inbox fs-1"></i>
+                        <p class="mt-2">No has creado tareas aún</p>
+                        <a href="{% url 'teacher_task_create' %}" class="btn btn-primary">
+                            <i class="bi bi-plus-circle"></i> Crear primera tarea
+                        </a>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Entregas por Revisar -->
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">
+                    <i class="bi bi-exclamation-triangle text-warning"></i> Por Revisar
+                </h5>
+                <button class="btn btn-sm btn-outline-warning" onclick="alert('Lista de entregas en desarrollo')">Ver todas</button>
+            </div>
+            <div class="card-body">
+                {% if recent_deliveries %}
+                    {% for delivery in recent_deliveries %}
+                        {% if not delivery.feedback %}
+                            <div class="d-flex justify-content-between align-items-start border-bottom pb-2 mb-2">
+                                <div class="flex-grow-1">
+                                    <h6 class="mb-1">
+                                        <a href="{% url 'teacher_task_detail' delivery.task.id %}" class="text-decoration-none">
+                                            {{ delivery.task.theme }}
+                                        </a>
+                                    </h6>
+                                    <small class="text-muted">
+                                        <i class="bi bi-person"></i> {{ delivery.student.display_name }}
+                                        | <i class="bi bi-calendar"></i> {{ delivery.date|date:"d/m" }}
+                                    </small>
+                                </div>
+                                <a href="{% url 'teacher_delivery_grade' delivery.id %}" class="btn btn-sm btn-outline-success">
+                                    <i class="bi bi-check-circle"></i>
+                                </a>
+                            </div>
+                        {% endif %}
+                    {% empty %}
+                        <div class="text-center text-muted py-4">
+                            <i class="bi bi-check-circle fs-1 text-success"></i>
+                            <p class="mt-2">¡Todo al día!</p>
+                            <small>No hay entregas pendientes de revisión</small>
+                        </div>
+                    {% endfor %}
+                {% else %}
+                    <div class="text-center text-muted py-4">
+                        <i class="bi bi-inbox fs-1"></i>
+                        <p class="mt-2">No hay entregas aún</p>
+                        <small>Las entregas aparecerán cuando los estudiantes suban trabajos</small>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Acciones Rápidas -->
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="bi bi-lightning-charge text-warning"></i> Acciones Rápidas
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-3 mb-3">
+                        <div class="d-grid">
+                            <a href="{% url 'teacher_task_create' %}" class="btn btn-outline-primary btn-lg">
+                                <i class="bi bi-plus-circle fs-3"></i><br>
+                                <span>Crear Tarea</span>
+                            </a>
+                        </div>
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <div class="d-grid">
+                            <a href="{% url 'teacher_task_list' %}" class="btn btn-outline-success btn-lg">
+                                <i class="bi bi-list-task fs-3"></i><br>
+                                <span>Ver Tareas</span>
+                            </a>
+                        </div>
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <div class="d-grid">
+                            <button class="btn btn-outline-warning btn-lg" onclick="alert('Lista de entregas en desarrollo')">
+                                <i class="bi bi-upload fs-3"></i><br>
+                                <span>Revisar Entregas</span>
+                            </a>
+                        </div>
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <div class="d-grid">
+                            <button class="btn btn-outline-info btn-lg" onclick="alert('Reportes en desarrollo')">
+                                <i class="bi bi-graph-up fs-3"></i><br>
+                                <span>Reportes</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

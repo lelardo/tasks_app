@@ -1,0 +1,384 @@
+{% extends 'apptask/base.html' %}
+{% block title %}Gestión de Usuarios - Sistema de Tareas{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1 class="display-6">
+        <i class="bi bi-people text-primary"></i> Gestión de Usuarios
+    </h1>
+    <a href="{% url 'admin_user_create' %}" class="btn btn-primary">
+        <i class="bi bi-person-plus"></i> Nuevo Usuario
+    </a>
+</div>
+
+<!-- Filtros y Búsqueda -->
+<div class="card mb-4">
+    <div class="card-header">
+        <h5 class="mb-0">
+            <i class="bi bi-funnel"></i> Filtros y Búsqueda
+        </h5>
+    </div>
+    <div class="card-body">
+        <form method="get" class="row g-3">
+            <div class="col-md-4">
+                <label for="search" class="form-label">Buscar</label>
+                <input type="text" class="form-control" id="search" name="search" 
+                       value="{{ current_search }}" placeholder="Nombre, email o username...">
+            </div>
+            <div class="col-md-4">
+                <label for="role" class="form-label">Filtrar por Rol</label>
+                <select class="form-select" id="role" name="role">
+                    <option value="">Todos los roles</option>
+                    <option value="admin" {% if current_role == 'admin' %}selected{% endif %}>Administrador</option>
+                    <option value="teacher" {% if current_role == 'teacher' %}selected{% endif %}>Docente</option>
+                    <option value="student" {% if current_role == 'student' %}selected{% endif %}>Estudiante</option>
+                </select>
+            </div>
+            <div class="col-md-4 d-flex align-items-end">
+                <button type="submit" class="btn btn-primary me-2">
+                    <i class="bi bi-search"></i> Buscar
+                </button>
+                <a href="{% url 'admin_user_list' %}" class="btn btn-outline-secondary">
+                    <i class="bi bi-x-circle"></i> Limpiar
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Estadísticas -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card bg-primary text-white">
+            <div class="card-body text-center">
+                <h3>{{ total_users }}</h3>
+                <p class="mb-0">Total Usuarios</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-success text-white">
+            <div class="card-body text-center">
+                <h3>{{ total_students }}</h3>
+                <p class="mb-0">Estudiantes</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-info text-white">
+            <div class="card-body text-center">
+                <h3>{{ total_teachers }}</h3>
+                <p class="mb-0">Docentes</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-warning text-dark">
+            <div class="card-body text-center">
+                <h3>{{ total_admins }}</h3>
+                <p class="mb-0">Administradores</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Lista de Usuarios -->
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h5 class="mb-0">
+            <i class="bi bi-list"></i> Lista de Usuarios
+            {% if current_search or current_role %}
+                <small class="text-muted">
+                    ({{ users.paginator.count }} resultado{{ users.paginator.count|pluralize }} 
+                    {% if current_search %}para "{{ current_search }}"{% endif %}
+                    {% if current_role %} - Rol: {{ current_role }}{% endif %})
+                </small>
+            {% else %}
+                <small class="text-muted">({{ users.paginator.count }} total)</small>
+            {% endif %}
+        </h5>
+    </div>
+    <div class="card-body p-0">
+        {% if users %}
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Usuario</th>
+                            <th>Email</th>
+                            <th>Rol</th>
+                            <th>Estado</th>
+                            <th>Fecha Registro</th>
+                            <th>Estadísticas</th>
+                            <th>Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for user in users %}
+                        <tr>
+                            <td>
+                                <div class="d-flex align-items-center">
+                                    <div class="me-3">
+                                        <i class="bi bi-person-circle fs-4 text-secondary"></i>
+                                    </div>
+                                    <div>
+                                        <h6 class="mb-0">{{ user.display_name }}</h6>
+                                        <small class="text-muted">@{{ user.username }}</small>
+                                    </div>
+                                </div>
+                            </td>
+                            <td>
+                                <span class="text-primary">{{ user.email }}</span>
+                                {% if user.is_institutional_email %}
+                                    <i class="bi bi-patch-check-fill text-success ms-1" title="Email institucional"></i>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if user.role == 'admin' %}
+                                    <span class="badge bg-danger">
+                                        <i class="bi bi-shield-check"></i> {{ user.role_display }}
+                                    </span>
+                                {% elif user.role == 'teacher' %}
+                                    <span class="badge bg-info">
+                                        <i class="bi bi-person-badge"></i> {{ user.role_display }}
+                                    </span>
+                                {% elif user.role == 'student' %}
+                                    <span class="badge bg-success">
+                                        <i class="bi bi-mortarboard"></i> {{ user.role_display }}
+                                    </span>
+                                {% else %}
+                                    <span class="badge bg-secondary">{{ user.role_display }}</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if user.is_active %}
+                                    <span class="badge bg-success">Activo</span>
+                                {% else %}
+                                    <span class="badge bg-danger">Inactivo</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <small>{{ user.date_joined|date:"d/m/Y H:i" }}</small>
+                            </td>
+                            <td>
+                                {% if user.role == 'teacher' %}
+                                    <small class="text-muted">
+                                        <i class="bi bi-book"></i> {{ user.taught_classes.count }} clase{{ user.taught_classes.count|pluralize }}<br>
+                                        <i class="bi bi-list-task"></i> {{ user.taught_classes.all|length }} tarea{{ user.taught_classes.all|length|pluralize }}
+                                    </small>
+                                {% elif user.role == 'student' %}
+                                    <small class="text-muted">
+                                        <i class="bi bi-journal"></i> {{ user.classes.count }} clase{{ user.classes.count|pluralize }}<br>
+                                        <i class="bi bi-upload"></i> {{ user.deliveries.count }} entrega{{ user.deliveries.count|pluralize }}
+                                    </small>
+                                {% else %}
+                                    <small class="text-muted">-</small>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <div class="btn-group btn-group-sm" role="group">
+                                    <button type="button" class="btn btn-outline-primary btn-sm" 
+                                            data-bs-toggle="modal" data-bs-target="#userModal{{ user.id }}">
+                                        <i class="bi bi-eye"></i>
+                                    </button>
+                                    {% comment %}
+                                    <a href="{% url 'admin_user_edit' user.id %}" class="btn btn-outline-warning btn-sm">
+                                        <i class="bi bi-pencil"></i>
+                                    </a>
+                                    <button type="button" class="btn btn-outline-danger btn-sm" 
+                                        onclick="toggleUserStatus({{ user.id }}, '{{ user.is_active|yesno:"true,false" }}')">
+                                    {% if user.is_active %}
+                                        <i class="bi bi-pause"></i>
+                                    {% else %}
+                                        <i class="bi bi-play"></i>
+                                    {% endif %}
+                                </button>
+                                    {% endcomment %}
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% else %}
+            <div class="text-center p-5">
+                <i class="bi bi-people fs-1 text-muted"></i>
+                <h5 class="mt-3 text-muted">No se encontraron usuarios</h5>
+                {% if current_search or current_role %}
+                    <p class="text-muted">Intenta cambiar los filtros de búsqueda</p>
+                    <a href="{% url 'admin_user_list' %}" class="btn btn-outline-primary">
+                        <i class="bi bi-arrow-left"></i> Ver todos los usuarios
+                    </a>
+                {% else %}
+                    <p class="text-muted">Comienza creando tu primer usuario</p>
+                    <a href="{% url 'admin_user_create' %}" class="btn btn-primary">
+                        <i class="bi bi-person-plus"></i> Crear Usuario
+                    </a>
+                {% endif %}
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Paginación -->
+{% if users.has_other_pages %}
+    <nav aria-label="Paginación de usuarios" class="mt-4">
+        <ul class="pagination justify-content-center">
+            {% if users.has_previous %}
+                <li class="page-item">
+                    <a class="page-link" href="?page=1{% if current_role %}&role={{ current_role }}{% endif %}{% if current_search %}&search={{ current_search }}{% endif %}">
+                        <i class="bi bi-chevron-double-left"></i>
+                    </a>
+                </li>
+                <li class="page-item">
+                    <a class="page-link" href="?page={{ users.previous_page_number }}{% if current_role %}&role={{ current_role }}{% endif %}{% if current_search %}&search={{ current_search }}{% endif %}">
+                        <i class="bi bi-chevron-left"></i>
+                    </a>
+                </li>
+            {% endif %}
+            
+            {% for num in users.paginator.page_range %}
+                {% if users.number == num %}
+                    <li class="page-item active">
+                        <span class="page-link">{{ num }}</span>
+                    </li>
+                {% elif num > users.number|add:'-3' and num < users.number|add:'3' %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ num }}{% if current_role %}&role={{ current_role }}{% endif %}{% if current_search %}&search={{ current_search }}{% endif %}">{{ num }}</a>
+                    </li>
+                {% endif %}
+            {% endfor %}
+            
+            {% if users.has_next %}
+                <li class="page-item">
+                    <a class="page-link" href="?page={{ users.next_page_number }}{% if current_role %}&role={{ current_role }}{% endif %}{% if current_search %}&search={{ current_search }}{% endif %}">
+                        <i class="bi bi-chevron-right"></i>
+                    </a>
+                </li>
+                <li class="page-item">
+                    <a class="page-link" href="?page={{ users.paginator.num_pages }}{% if current_role %}&role={{ current_role }}{% endif %}{% if current_search %}&search={{ current_search }}{% endif %}">
+                        <i class="bi bi-chevron-double-right"></i>
+                    </a>
+                </li>
+            {% endif %}
+        </ul>
+    </nav>
+{% endif %}
+
+<!-- Modales para ver detalles de usuarios -->
+{% for user in users %}
+<div class="modal fade" id="userModal{{ user.id }}" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="bi bi-person-circle"></i> Detalles de {{ user.display_name }}
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <h6><i class="bi bi-info-circle text-primary"></i> Información Personal</h6>
+                        <table class="table table-sm">
+                            <tr>
+                                <td><strong>Nombre:</strong></td>
+                                <td>{{ user.display_name }}</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Username:</strong></td>
+                                <td>@{{ user.username }}</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Email:</strong></td>
+                                <td>{{ user.email }}</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Teléfono:</strong></td>
+                                <td>{{ user.phone|default:"No especificado" }}</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Cédula:</strong></td>
+                                <td>{{ user.dni|default:"No especificado" }}</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Rol:</strong></td>
+                                <td>
+                                    <span class="badge bg-{{ user.role }}">{{ user.role_display }}</span>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td><strong>Estado:</strong></td>
+                                <td>
+                                    {% if user.is_active %}
+                                        <span class="badge bg-success">Activo</span>
+                                    {% else %}
+                                        <span class="badge bg-danger">Inactivo</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            <tr>
+                                <td><strong>Registrado:</strong></td>
+                                <td>{{ user.date_joined|date:"d/m/Y H:i" }}</td>
+                            </tr>
+                        </table>
+                    </div>
+                    <div class="col-md-6">
+                        {% if user.role == 'teacher' %}
+                            <h6><i class="bi bi-graph-up text-info"></i> Estadísticas como Docente</h6>
+                            <div class="row text-center">
+                                <div class="col-6">
+                                    <div class="card bg-light">
+                                        <div class="card-body py-2">
+                                            <h5>{{ user.taught_classes.count }}</h5>
+                                            <small>Clases Impartidas</small>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-6">
+                                    <div class="card bg-light">
+                                        <div class="card-body py-2">
+                                            <h5>{{ user.reviewed_deliveries.count }}</h5>
+                                            <small>Entregas Revisadas</small>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        {% elif user.role == 'student' %}
+                            <h6><i class="bi bi-graph-up text-info"></i> Estadísticas como Estudiante</h6>
+                            <div class="row text-center">
+                                <div class="col-6">
+                                    <div class="card bg-light">
+                                        <div class="card-body py-2">
+                                            <h5>{{ user.classes.count }}</h5>
+                                            <small>Clases Inscritas</small>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-6">
+                                    <div class="card bg-light">
+                                        <div class="card-body py-2">
+                                            <h5>{{ user.deliveries.count }}</h5>
+                                            <small>Entregas Realizadas</small>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+                {% comment %}
+                <a href="{% url 'admin_user_edit' user.id %}" class="btn btn-primary">
+                    <i class="bi bi-pencil"></i> Editar
+                </a>
+                {% endcomment %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endfor %}
+{% endblock %}
