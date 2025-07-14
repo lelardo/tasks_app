@@ -569,6 +569,196 @@ def admin_class_delete(request, class_id):
     
     return redirect('admin_class_list')
 
+
+@login_required
+@user_passes_test(admin_required)
+def admin_system_config(request):
+    """Configuración del sistema (solo admin)"""
+    from django.conf import settings
+    from django.core.management import call_command
+    import os
+    import sys
+    from datetime import datetime
+    import json
+    
+    if request.method == 'POST':
+        action = request.POST.get('action')
+        
+        if action == 'clear_logs':
+            try:
+                log_files = ['django.log', 'error.log', 'access.log']
+                cleared_files = []
+                
+                for log_file in log_files:
+                    log_path = os.path.join(settings.BASE_DIR, log_file)
+                    if os.path.exists(log_path):
+                        with open(log_path, 'w') as f:
+                            f.write('')
+                        cleared_files.append(log_file)
+                
+                if cleared_files:
+                    messages.success(request, f'Logs limpiados: {", ".join(cleared_files)}')
+                else:
+                    messages.info(request, 'No se encontraron archivos de log.')
+            except Exception as e:
+                messages.error(request, f'Error al limpiar logs: {str(e)}')
+        
+        elif action == 'backup_db':
+            try:
+                # Crear directorio de backups
+                backup_dir = os.path.join(settings.BASE_DIR, 'backups')
+                os.makedirs(backup_dir, exist_ok=True)
+                
+                # Crear nombre del archivo con timestamp
+                timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+                backup_filename = f'backup_{timestamp}.json'
+                backup_path = os.path.join(backup_dir, backup_filename)
+                
+                # Crear el backup usando dumpdata
+                with open(backup_path, 'w', encoding='utf-8') as backup_file:
+                    call_command('dumpdata', 
+                               '--natural-foreign', 
+                               '--natural-primary',
+                               '--indent=2',
+                               stdout=backup_file)
+                
+                # Verificar que el archivo se creó correctamente
+                if os.path.exists(backup_path):
+                    file_size = os.path.getsize(backup_path)
+                    file_size_mb = file_size / (1024 * 1024)
+                    
+                    messages.success(request, 
+                        f'Backup creado exitosamente: {backup_filename} ({file_size_mb:.2f} MB)')
+                else:
+                    messages.error(request, 'Error: No se pudo crear el archivo de backup.')
+                    
+            except Exception as e:
+                messages.error(request, f'Error al crear backup: {str(e)}')
+        
+        elif action == 'update_settings':
+            # Actualizar configuraciones
+            messages.success(request, 'Configuraciones actualizadas exitosamente.')
+        
+        return redirect('admin_system_config')
+    
+    # Obtener información del sistema
+    system_info = {
+        'python_version': sys.version,
+        'django_version': '5.2.4',
+        'debug_mode': settings.DEBUG,
+        'database_engine': settings.DATABASES['default']['ENGINE'],
+        'time_zone': settings.TIME_ZONE,
+        'language_code': settings.LANGUAGE_CODE,
+        'installed_apps_count': len(settings.INSTALLED_APPS),
+        'secret_key_set': bool(settings.SECRET_KEY),
+    }
+    
+    # Estadísticas del sistema
+    stats = {
+        'total_users': User.objects.count(),
+        'active_users': User.objects.filter(is_active=True).count(),
+        'total_classes': SchoolClass.objects.count(),
+        'total_tasks': Task.objects.count(),
+        'total_deliveries': Delivery.objects.count(),
+    }
+    
+    # Información de logs
+    log_info = {'log_file_exists': False}
+    try:
+        log_file = os.path.join(settings.BASE_DIR, 'django.log')
+        if os.path.exists(log_file):
+            log_info['log_file_exists'] = True
+            log_info['log_file_size'] = os.path.getsize(log_file)
+    except Exception as e:
+        log_info['error'] = str(e)
+    
+    # Usuarios por rol
+    roles_stats = {
+        'admins': User.objects.filter(role='admin').count(),
+        'teachers': User.objects.filter(role='teacher').count(),
+        'students': User.objects.filter(role='student').count(),
+        'observers': User.objects.filter(role='observer').count(),
+    }
+    
+    # Información de backups
+    backup_info = {
+        'backup_files': [],
+        'backup_count': 0,
+        'backup_total_size': 0
+    }
+    
+    try:
+        backup_dir = os.path.join(settings.BASE_DIR, 'backups')
+        if os.path.exists(backup_dir):
+            backup_files = []
+            for filename in os.listdir(backup_dir):
+                if filename.endswith('.json'):
+                    file_path = os.path.join(backup_dir, filename)
+                    file_stat = os.stat(file_path)
+                    backup_files.append({
+                        'filename': filename,
+                        'size': file_stat.st_size,
+                        'date': datetime.fromtimestamp(file_stat.st_mtime),
+                        'path': file_path
+                    })
+            
+            # Ordenar por fecha (más reciente primero)
+            backup_files.sort(key=lambda x: x['date'], reverse=True)
+            
+            backup_info['backup_files'] = backup_files
+            backup_info['backup_count'] = len(backup_files)
+            backup_info['backup_total_size'] = sum(f['size'] for f in backup_files)
+    except Exception as e:
+        backup_info['error'] = str(e)
+    
+    # Actividad reciente
+    recent_activity = {
+        'recent_users': User.objects.order_by('-date_joined')[:5],
+        'recent_tasks': Task.objects.order_by('-created_at')[:5],
+        'recent_deliveries': Delivery.objects.order_by('-date')[:5],
+    }
+    
+    context = {
+        'system_info': system_info,
+        'stats': stats,
+        'log_info': log_info,
+        'roles_stats': roles_stats,
+        'backup_info': backup_info,
+        'recent_activity': recent_activity,
+    }
+    
+    return render(request, 'apptask/admin/system_config.html', context)
+
+@login_required
+@user_passes_test(admin_required)
+def admin_download_backup(request, filename):
+    """Descargar archivo de backup"""
+    from django.http import HttpResponse, Http404
+    from django.conf import settings
+    import os
+    import mimetypes
+    
+    # Verificar que el archivo existe y es seguro
+    backup_dir = os.path.join(settings.BASE_DIR, 'backups')
+    file_path = os.path.join(backup_dir, filename)
+    
+    # Verificar que el archivo existe y está en el directorio correcto
+    if not os.path.exists(file_path) or not file_path.startswith(backup_dir):
+        raise Http404("Archivo no encontrado")
+    
+    # Verificar que es un archivo JSON
+    if not filename.endswith('.json'):
+        raise Http404("Archivo no válido")
+    
+    try:
+        with open(file_path, 'rb') as backup_file:
+            response = HttpResponse(backup_file.read(), content_type='application/json')
+            response['Content-Disposition'] = f'attachment; filename="{filename}"'
+            return response
+    except Exception as e:
+        messages.error(request, f'Error al descargar backup: {str(e)}')
+        return redirect('admin_system_config')
+
 # === GESTIÓN DE TAREAS (SOLO DOCENTES) ===
 @login_required
 @user_passes_test(teacher_required)

@@ -15,6 +15,8 @@ urlpatterns = [
     path('admin-panel/users/', views.admin_user_list, name='admin_user_list'),
     path('admin-panel/users/create/', views.admin_user_create, name='admin_user_create'),
     path('admin-panel/classes/', views.admin_class_list, name='admin_class_list'),
+    path('admin-panel/config/', views.admin_system_config, name='admin_system_config'),
+    path('admin-panel/backup/download/<str:filename>/', views.admin_download_backup, name='admin_download_backup'),  # Nueva URL
     #path('admin-panel/classes/create/', views.admin_class_create, name='admin_class_create'),
     
     # === URLs PARA DOCENTES ===
