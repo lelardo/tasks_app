@@ -50,6 +50,17 @@
                                     <i class="bi bi-upload"></i> Entregas
                                 </a>
                             </li>
+                        {% elif user.role == 'observer' %}
+                            <li class="nav-item">
+                                <a class="nav-link" href="{% url 'observer_reports' %}">
+                                    <i class="bi bi-graph-up"></i> Reportes
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link" href="{% url 'observer_academic_overview' %}">
+                                    <i class="bi bi-mortarboard"></i> Vista Académica
+                                </a>
+                            </li>
                         {% elif user.role == 'student' %}
                             <li class="nav-item">
                                 <a class="nav-link" href="#" onclick="alert('Función en desarrollo')">
@@ -62,12 +73,19 @@
                                 </a>
                             </li>
                         {% endif %}
+
                     </ul>
                     
                     <ul class="navbar-nav">
                         {% if user.role == 'admin' %}
-                        {% endif %}
                         
+                        {% elif user.role == 'observer' %}
+                            <li class="nav-item">
+                                <a class="nav-link btn btn-outline-light btn-sm me-2" href="{% url 'observer_reports' %}">
+                                    <i class="bi bi-file-earmark-bar-graph"></i> Generar Reporte
+                                </a>
+                            </li>
+                        {% endif %}
                         <li class="nav-item dropdown">
                             <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
                                 <i class="bi bi-person-circle"></i> 

@@ -39,4 +39,10 @@ urlpatterns = [
     path('api/auth/refresh/', TokenRefreshView.as_view(), name='api_token_refresh'),
     path('api/auth/profile/', views.UserProfileView.as_view(), name='api_profile'),
     path('api/users/', views.UserListView.as_view(), name='api_users'),
+
+    # === URLs PARA OBSERVADORES ===
+    path('observer/', views.observer_dashboard, name='observer_dashboard'),
+    path('observer/reports/', views.observer_reports, name='observer_reports'),
+    path('observer/academic/', views.observer_academic_overview, name='observer_academic_overview'),
+    path('observer/export/', views.observer_export_report, name='observer_export_report'),
 ]
