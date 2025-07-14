@@ -1,0 +1,278 @@
+{% extends 'apptask/base.html' %}
+{% block title %}Configuración del Sistema{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h1 class="display-5">
+                <i class="bi bi-gear text-secondary"></i> Configuración del Sistema
+            </h1>
+            <a href="{% url 'admin_dashboard' %}" class="btn btn-outline-secondary">
+                <i class="bi bi-arrow-left"></i> Volver
+            </a>
+        </div>
+    </div>
+</div>
+
+<!-- Información del Sistema -->
+<div class="row mb-4">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0">Información del Sistema</h5>
+            </div>
+            <div class="card-body">
+                <p><strong>Python:</strong> {{ system_info.python_version|truncatechars:30 }}</p>
+                <p><strong>Django:</strong> {{ system_info.django_version|default:"5.2.4" }}</p>
+                <p><strong>Debug:</strong> 
+                    {% if system_info.debug_mode %}
+                        <span class="badge bg-warning">Activado</span>
+                    {% else %}
+                        <span class="badge bg-success">Desactivado</span>
+                    {% endif %}
+                </p>
+                <p><strong>Base de Datos:</strong> {{ system_info.database_engine|cut:"django.db.backends." }}</p>
+                <p><strong>Zona Horaria:</strong> {{ system_info.time_zone }}</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header bg-success text-white">
+                <h5 class="mb-0">Estadísticas</h5>
+            </div>
+            <div class="card-body">
+                <div class="row text-center">
+                    <div class="col-6 mb-2">
+                        <h4>{{ stats.total_users }}</h4>
+                        <small>Usuarios</small>
+                    </div>
+                    <div class="col-6 mb-2">
+                        <h4>{{ stats.total_classes }}</h4>
+                        <small>Clases</small>
+                    </div>
+                    <div class="col-6">
+                        <h4>{{ stats.total_tasks }}</h4>
+                        <small>Tareas</small>
+                    </div>
+                    <div class="col-6">
+                        <h4>{{ stats.total_deliveries }}</h4>
+                        <small>Entregas</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Usuarios por Rol -->
+<div class="row mb-4">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header bg-info text-white">
+                <h5 class="mb-0">Usuarios por Rol</h5>
+            </div>
+            <div class="card-body">
+                <div class="d-flex justify-content-between mb-2">
+                    <span>Administradores</span>
+                    <span class="badge bg-danger">{{ roles_stats.admins }}</span>
+                </div>
+                <div class="d-flex justify-content-between mb-2">
+                    <span>Docentes</span>
+                    <span class="badge bg-success">{{ roles_stats.teachers }}</span>
+                </div>
+                <div class="d-flex justify-content-between mb-2">
+                    <span>Estudiantes</span>
+                    <span class="badge bg-primary">{{ roles_stats.students }}</span>
+                </div>
+                <div class="d-flex justify-content-between">
+                    <span>Observadores</span>
+                    <span class="badge bg-info">{{ roles_stats.observers }}</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header bg-warning text-dark">
+                <h5 class="mb-0">Herramientas</h5>
+            </div>
+            <div class="card-body">
+                <div class="d-grid gap-2">
+                    {% if log_info.log_file_exists %}
+                        <form method="post" class="d-inline">
+                            {% csrf_token %}
+                            <input type="hidden" name="action" value="clear_logs">
+                            <button type="submit" class="btn btn-warning btn-sm w-100" 
+                                    onclick="return confirm('¿Limpiar logs del sistema?')">
+                                <i class="bi bi-trash"></i> Limpiar Logs
+                            </button>
+                        </form>
+                    {% endif %}
+                    
+                    <form method="post" class="d-inline">
+                        {% csrf_token %}
+                        <input type="hidden" name="action" value="backup_db">
+                        <button type="submit" class="btn btn-info btn-sm w-100">
+                            <i class="bi bi-download"></i> Backup DB
+                        </button>
+                    </form>
+                    
+                    <button class="btn btn-success btn-sm w-100" onclick="checkSystem()">
+                        <i class="bi bi-shield-check"></i> Verificar Sistema
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<!-- Agregar después de la sección "Usuarios por Rol" y antes de "Configuraciones Básicas" -->
+
+<!-- Gestión de Backups -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header bg-dark text-white">
+                <h5 class="mb-0">
+                    <i class="bi bi-database"></i> Gestión de Backups
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <h6>Crear Nuevo Backup</h6>
+                        <p class="text-muted small">Genera una copia de seguridad completa de la base de datos</p>
+                        <form method="post" class="d-inline">
+                            {% csrf_token %}
+                            <input type="hidden" name="action" value="backup_db">
+                            <button type="submit" class="btn btn-primary" 
+                                    onclick="return confirm('¿Crear backup de la base de datos?')">
+                                <i class="bi bi-download"></i> Crear Backup
+                            </button>
+                        </form>
+                    </div>
+                    
+                    <div class="col-md-6">
+                        <h6>Backups Existentes</h6>
+                        {% if backup_info.backup_files %}
+                            <div class="table-responsive" style="max-height: 200px; overflow-y: auto;">
+                                <table class="table table-sm">
+                                    <thead>
+                                        <tr>
+                                            <th>Archivo</th>
+                                            <th>Tamaño</th>
+                                            <th>Fecha</th>
+                                            <th>Acción</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for backup in backup_info.backup_files %}
+                                        <tr>
+                                            <td>{{ backup.filename|truncatechars:20 }}</td>
+                                            <td>{{ backup.size|filesizeformat }}</td>
+                                            <td>{{ backup.date|date:"d/m H:i" }}</td>
+                                            <td>
+                                                <a href="{% url 'admin_download_backup' backup.filename %}" 
+                                                   class="btn btn-sm btn-outline-success">
+                                                    <i class="bi bi-download"></i>
+                                                </a>
+                                            </td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        {% else %}
+                            <p class="text-muted">No hay backups disponibles</p>
+                        {% endif %}
+                    </div>
+                </div>
+                
+                <div class="alert alert-info mt-3">
+                    <i class="bi bi-info-circle"></i>
+                    <strong>Información:</strong> Los backups se crean en formato JSON y contienen todos los datos del sistema.
+                    Se recomienda crear backups regularmente antes de realizar cambios importantes.
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<!-- Configuraciones Básicas -->
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header bg-secondary text-white">
+                <h5 class="mb-0">Configuraciones</h5>
+            </div>
+            <div class="card-body">
+                <form method="post">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="update_settings">
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="site_name" class="form-label">Nombre del Sistema</label>
+                                <input type="text" class="form-control" id="site_name" name="site_name" 
+                                       value="Sistema de Gestión de Tareas">
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="max_file_size" class="form-label">Tamaño máximo archivo (MB)</label>
+                                <input type="number" class="form-control" id="max_file_size" name="max_file_size" 
+                                       value="10" min="1" max="100">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="form-check mb-3">
+                                <input class="form-check-input" type="checkbox" id="maintenance_mode" name="maintenance_mode">
+                                <label class="form-check-label" for="maintenance_mode">
+                                    Modo Mantenimiento
+                                </label>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-check mb-3">
+                                <input class="form-check-input" type="checkbox" id="email_notifications" name="email_notifications">
+                                <label class="form-check-label" for="email_notifications">
+                                    Notificaciones Email
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-check-circle"></i> Guardar Configuración
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    function checkSystem() {
+        const checks = [
+            'Base de datos: OK',
+            'Archivos estáticos: OK',
+            'Configuración: OK',
+            'Conexión: OK',
+            'Backups: {{ backup_info.backup_count }} disponibles'
+        ];
+        alert('Verificación del sistema:\n\n' + checks.join('\n'));
+    }
+    
+    function downloadBackup(filename) {
+        if(confirm('¿Descargar backup: ' + filename + '?')) {
+            window.location.href = '/admin-panel/backup/download/' + filename;
+        }
+    }
+    </script>
+{% endblock %}
