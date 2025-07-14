@@ -1,0 +1,362 @@
+{% extends 'apptask/base.html' %}
+{% block title %}Reportes Detallados - Observador{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h1 class="display-5">
+                <i class="bi bi-bar-chart text-primary"></i> Reportes Detallados
+            </h1>
+            <div class="btn-group">
+                <button class="btn btn-success" onclick="exportReport('deliveries')">
+                    <i class="bi bi-download"></i> Exportar Entregas
+                </button>
+                <button class="btn btn-info" onclick="exportReport('students')">
+                    <i class="bi bi-download"></i> Exportar Estudiantes
+                </button>
+                <button class="btn btn-warning" onclick="exportReport('classes')">
+                    <i class="bi bi-download"></i> Exportar Clases
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Filtros de Fecha -->
+<div class="card mb-4">
+    <div class="card-header">
+        <h5 class="mb-0">
+            <i class="bi bi-funnel"></i> Filtros de Reporte
+        </h5>
+    </div>
+    <div class="card-body">
+        <form method="get" class="row g-3">
+            <div class="col-md-4">
+                <label for="date_from" class="form-label">Fecha Desde</label>
+                <input type="date" class="form-control" id="date_from" name="date_from" 
+                       value="{{ date_from }}">
+            </div>
+            <div class="col-md-4">
+                <label for="date_to" class="form-label">Fecha Hasta</label>
+                <input type="date" class="form-control" id="date_to" name="date_to" 
+                       value="{{ date_to }}">
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">&nbsp;</label>
+                <div class="d-grid">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-search"></i> Filtrar
+                    </button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Estadísticas Generales -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="bi bi-graph-up"></i> Estadísticas Generales de Entregas
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-3 text-center">
+                        <h3 class="text-primary">{{ delivery_stats.total }}</h3>
+                        <p class="mb-0">Total Entregas</p>
+                    </div>
+                    <div class="col-md-3 text-center">
+                        <h3 class="text-success">{{ delivery_stats.graded }}</h3>
+                        <p class="mb-0">Calificadas ({{ delivery_stats.graded_percentage|floatformat:1 }}%)</p>
+                    </div>
+                    <div class="col-md-3 text-center">
+                        <h3 class="text-warning">{{ delivery_stats.pending }}</h3>
+                        <p class="mb-0">Pendientes ({{ delivery_stats.pending_percentage|floatformat:1 }}%)</p>
+                    </div>
+                    <div class="col-md-3 text-center">
+                        <h3 class="text-info">{{ delivery_stats.on_time }}</h3>
+                        <p class="mb-0">A Tiempo ({{ delivery_stats.on_time_percentage|floatformat:1 }}%)</p>
+                    </div>
+                </div>
+                
+                <!-- Barras de progreso -->
+                <div class="row mt-3">
+                    <div class="col-md-6">
+                        <label class="form-label">Entregas Calificadas</label>
+                        <div class="progress">
+                            <div class="progress-bar bg-success" style="width: {{ delivery_stats.graded_percentage }}%">
+                                {{ delivery_stats.graded_percentage|floatformat:1 }}%
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Entregas a Tiempo</label>
+                        <div class="progress">
+                            <div class="progress-bar bg-info" style="width: {{ delivery_stats.on_time_percentage }}%">
+                                {{ delivery_stats.on_time_percentage|floatformat:1 }}%
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Distribución de Calificaciones -->
+<div class="row mb-4">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="bi bi-star"></i> Distribución de Calificaciones
+                </h5>
+            </div>
+            <div class="card-body">
+                {% if total_graded > 0 %}
+                    <div class="mb-3">
+                        <div class="d-flex justify-content-between">
+                            <span>Excelente (9-10)</span>
+                            <span>{{ grade_distribution.excellent }} ({{ grade_distribution.excellent_percentage|floatformat:1 }}%)</span>
+                        </div>
+                        <div class="progress mb-2">
+                            <div class="progress-bar bg-success" style="width: {{ grade_distribution.excellent_percentage }}%"></div>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <div class="d-flex justify-content-between">
+                            <span>Bueno (7-8.9)</span>
+                            <span>{{ grade_distribution.good }} ({{ grade_distribution.good_percentage|floatformat:1 }}%)</span>
+                        </div>
+                        <div class="progress mb-2">
+                            <div class="progress-bar bg-info" style="width: {{ grade_distribution.good_percentage }}%"></div>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <div class="d-flex justify-content-between">
+                            <span>Regular (5-6.9)</span>
+                            <span>{{ grade_distribution.average }} ({{ grade_distribution.average_percentage|floatformat:1 }}%)</span>
+                        </div>
+                        <div class="progress mb-2">
+                            <div class="progress-bar bg-warning" style="width: {{ grade_distribution.average_percentage }}%"></div>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <div class="d-flex justify-content-between">
+                            <span>Deficiente (0-4.9)</span>
+                            <span>{{ grade_distribution.poor }} ({{ grade_distribution.poor_percentage|floatformat:1 }}%)</span>
+                        </div>
+                        <div class="progress mb-2">
+                            <div class="progress-bar bg-danger" style="width: {{ grade_distribution.poor_percentage }}%"></div>
+                        </div>
+                    </div>
+                {% else %}
+                    <p class="text-muted text-center">No hay calificaciones disponibles</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="bi bi-person-badge"></i> Actividad de Docentes
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive" style="max-height: 300px; overflow-y: auto;">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>Docente</th>
+                                <th>Clases</th>
+                                <th>Tareas</th>
+                                <th>Revisadas</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for teacher in teacher_activity %}
+                            <tr>
+                                <td>{{ teacher.teacher.display_name }}</td>
+                                <td>{{ teacher.classes_count }}</td>
+                                <td>{{ teacher.tasks_created }}</td>
+                                <td>{{ teacher.deliveries_reviewed }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Rendimiento por Clase -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="bi bi-building"></i> Rendimiento por Clase
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Clase</th>
+                                <th>Docente</th>
+                                <th>Promedio</th>
+                                <th>Entregas</th>
+                                <th>Completado</th>
+                                <th>Calificadas</th>
+                                <th>Pendientes</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for class_data in class_averages %}
+                            <tr>
+                                <td>
+                                    <strong>{{ class_data.class.identify }}</strong><br>
+                                    <small class="text-muted">{{ class_data.class.course }}</small>
+                                </td>
+                                <td>{{ class_data.class.teacher.display_name }}</td>
+                                <td>
+                                    {% if class_data.average_grade > 0 %}
+                                        <span class="badge 
+                                            {% if class_data.average_grade >= 9 %}bg-success
+                                            {% elif class_data.average_grade >= 7 %}bg-info
+                                            {% elif class_data.average_grade >= 5 %}bg-warning
+                                            {% else %}bg-danger{% endif %}">
+                                            {{ class_data.average_grade }}/10
+                                        </span>
+                                    {% else %}
+                                        <span class="text-muted">Sin datos</span>
+                                    {% endif %}
+                                </td>
+                                <td>{{ class_data.total_deliveries }}/{{ class_data.expected_deliveries }}</td>
+                                <td>
+                                    <div class="progress" style="height: 20px;">
+                                        <div class="progress-bar 
+                                            {% if class_data.completion_rate >= 80 %}bg-success
+                                            {% elif class_data.completion_rate >= 60 %}bg-info
+                                            {% elif class_data.completion_rate >= 40 %}bg-warning
+                                            {% else %}bg-danger{% endif %}" 
+                                             style="width: {{ class_data.completion_rate }}%;">
+                                            {{ class_data.completion_rate }}%
+                                        </div>
+                                    </div>
+                                </td>
+                                <td>
+                                    <span class="badge bg-success">{{ class_data.graded_count }}</span>
+                                </td>
+                                <td>
+                                    <span class="badge bg-warning">{{ class_data.pending_count }}</span>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Top 10 Estudiantes -->
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="bi bi-trophy"></i> Top 20 Estudiantes por Rendimiento
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>Estudiante</th>
+                                <th>Promedio</th>
+                                <th>Entregas</th>
+                                <th>Completado</th>
+                                <th>A Tiempo</th>
+                                <th>Tardías</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for student in student_performance %}
+                            <tr>
+                                <td>{{ forloop.counter }}</td>
+                                <td>
+                                    <div class="d-flex align-items-center">
+                                        {% if forloop.counter <= 3 %}
+                                            <i class="bi bi-trophy-fill 
+                                                {% if forloop.counter == 1 %}text-warning
+                                                {% elif forloop.counter == 2 %}text-secondary
+                                                {% else %}text-muted{% endif %} me-2"></i>
+                                        {% endif %}
+                                        <div>
+                                            <strong>{{ student.student.display_name }}</strong><br>
+                                            <small class="text-muted">{{ student.student.email }}</small>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td>
+                                    {% if student.average_grade > 0 %}
+                                        <span class="badge 
+                                            {% if student.average_grade >= 9 %}bg-success
+                                            {% elif student.average_grade >= 7 %}bg-info
+                                            {% elif student.average_grade >= 5 %}bg-warning
+                                            {% else %}bg-danger{% endif %}">
+                                            {{ student.average_grade }}/10
+                                        </span>
+                                    {% else %}
+                                        <span class="text-muted">Sin datos</span>
+                                    {% endif %}
+                                </td>
+                                <td>{{ student.total_deliveries }}</td>
+                                <td>
+                                    <small>{{ student.completion_rate }}%</small>
+                                    <div class="progress" style="height: 5px;">
+                                        <div class="progress-bar bg-primary" style="width: {{ student.completion_rate }}%"></div>
+                                    </div>
+                                </td>
+                                <td>
+                                    <span class="badge bg-success">{{ student.on_time_deliveries }}</span>
+                                </td>
+                                <td>
+                                    <span class="badge bg-danger">{{ student.late_deliveries }}</span>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function exportReport(type) {
+    const urlParams = new URLSearchParams(window.location.search);
+    const dateFrom = urlParams.get('date_from') || '';
+    const dateTo = urlParams.get('date_to') || '';
+    
+    let exportUrl = '/observer/export/?type=' + type;
+    if (dateFrom) exportUrl += '&date_from=' + dateFrom;
+    if (dateTo) exportUrl += '&date_to=' + dateTo;
+    
+    window.open(exportUrl, '_blank');
+}
+</script>
+{% endblock %}

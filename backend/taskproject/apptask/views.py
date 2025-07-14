@@ -14,6 +14,11 @@ from django.http import JsonResponse
 from .models import Task, Delivery, SchoolClass, User
 from .forms import TaskForm, DeliveryForm, GradeDeliveryForm
 from django import forms
+from django.db.models import Count, Avg, Q, F
+from django.http import JsonResponse, HttpResponse
+import csv
+import json
+from datetime import datetime, timedelta
 from .serializers import (
     UserRegistrationSerializer, 
     UserLoginSerializer,
@@ -61,6 +66,9 @@ def home(request):
         return redirect('teacher_dashboard')
     elif request.user.role == 'student':
         return redirect('student_dashboard')
+    elif request.user.role == 'observer':  # NUEVO
+        return redirect('observer_dashboard')
+    
     else:
         # Para usuarios sin rol específico, mostrar dashboard general
         context = {
@@ -1003,3 +1011,450 @@ def change_password_view(request):
             messages.error(request, f'Error al cambiar la contraseña: {str(e)}')
     
     return redirect('profile')
+
+# === DECORADORES PERSONALIZADOS ===
+def observer_required(user):
+    """Verifica que el usuario sea observador"""
+    return user.is_authenticated and user.role == 'observer'
+
+def observer_or_admin_required(user):
+    """Verifica que el usuario sea observador o administrador"""
+    return user.is_authenticated and user.role in ['observer', 'admin']
+
+# === VISTAS PARA OBSERVADORES ===
+@login_required
+@user_passes_test(observer_required)
+def observer_dashboard(request):
+    """Dashboard principal para observadores"""
+    # Estadísticas generales del sistema
+    total_users = User.objects.count()
+    total_students = User.objects.filter(role='student').count()
+    total_teachers = User.objects.filter(role='teacher').count()
+    total_classes = SchoolClass.objects.count()
+    total_tasks = Task.objects.count()
+    total_deliveries = Delivery.objects.count()
+    
+    # Estadísticas de entregas
+    pending_deliveries = Delivery.objects.filter(feedback='').count()
+    graded_deliveries = Delivery.objects.exclude(feedback='').count()
+    
+    # Calcular porcentajes (evitar división por cero)
+    graded_percentage = 0
+    pending_percentage = 0
+    if total_deliveries > 0:
+        graded_percentage = (graded_deliveries * 100) / total_deliveries
+        pending_percentage = (pending_deliveries * 100) / total_deliveries
+    
+    # Actividad reciente
+    recent_tasks = Task.objects.order_by('-created_at')[:5]
+    recent_deliveries = Delivery.objects.order_by('-date')[:5]
+    
+    # Promedio general de calificaciones
+    from django.db.models import Avg
+    avg_grade = Delivery.objects.filter(grade__isnull=False).aggregate(
+        average=Avg('grade')
+    )['average']
+    
+    context = {
+        'total_users': total_users,
+        'total_students': total_students,
+        'total_teachers': total_teachers,
+        'total_classes': total_classes,
+        'total_tasks': total_tasks,
+        'total_deliveries': total_deliveries,
+        'pending_deliveries': pending_deliveries,
+        'graded_deliveries': graded_deliveries,
+        'graded_percentage': graded_percentage,
+        'pending_percentage': pending_percentage,
+        'recent_tasks': recent_tasks,
+        'recent_deliveries': recent_deliveries,
+        'avg_grade': avg_grade,
+    }
+    
+    return render(request, 'apptask/observer/dashboard.html', context)
+
+@login_required
+@user_passes_test(observer_required)
+def observer_reports(request):
+    """Centro de reportes detallados para observadores"""
+    from django.db.models import Avg, Count, Q, Max, Min
+    from datetime import datetime, timedelta
+    
+    # Filtros de fecha
+    date_from = request.GET.get('date_from')
+    date_to = request.GET.get('date_to')
+    
+    # Query base para entregas
+    deliveries_query = Delivery.objects.all()
+    if date_from:
+        deliveries_query = deliveries_query.filter(date__gte=date_from)
+    if date_to:
+        deliveries_query = deliveries_query.filter(date__lte=date_to)
+    
+    # === ESTADÍSTICAS GENERALES ===
+    delivery_stats = {
+        'total': deliveries_query.count(),
+        'graded': deliveries_query.exclude(feedback='').count(),
+        'pending': deliveries_query.filter(feedback='').count(),
+        'on_time': deliveries_query.filter(
+            date__lte=models.F('task__delivery_date')
+        ).count(),
+        'late': deliveries_query.filter(
+            date__gt=models.F('task__delivery_date')
+        ).count(),
+    }
+    
+    # Calcular porcentajes
+    total = delivery_stats['total']
+    if total > 0:
+        delivery_stats['graded_percentage'] = (delivery_stats['graded'] * 100) / total
+        delivery_stats['pending_percentage'] = (delivery_stats['pending'] * 100) / total
+        delivery_stats['on_time_percentage'] = (delivery_stats['on_time'] * 100) / total
+        delivery_stats['late_percentage'] = (delivery_stats['late'] * 100) / total
+    else:
+        delivery_stats['graded_percentage'] = 0
+        delivery_stats['pending_percentage'] = 0
+        delivery_stats['on_time_percentage'] = 0
+        delivery_stats['late_percentage'] = 0
+    
+    # === ESTADÍSTICAS POR CLASE ===
+    class_averages = []
+    for school_class in SchoolClass.objects.all():
+        class_deliveries = deliveries_query.filter(task__school_class=school_class)
+        
+        avg_grade = class_deliveries.filter(
+            grade__isnull=False
+        ).aggregate(average=Avg('grade'))['average']
+        
+        total_students = school_class.student_list.count()
+        total_tasks = school_class.tasks.count()
+        expected_deliveries = total_students * total_tasks
+        actual_deliveries = class_deliveries.count()
+        
+        completion_rate = 0
+        if expected_deliveries > 0:
+            completion_rate = (actual_deliveries * 100) / expected_deliveries
+        
+        class_averages.append({
+            'class': school_class,
+            'average_grade': round(avg_grade, 2) if avg_grade else 0,
+            'total_deliveries': actual_deliveries,
+            'expected_deliveries': expected_deliveries,
+            'completion_rate': round(completion_rate, 1),
+            'graded_count': class_deliveries.exclude(feedback='').count(),
+            'pending_count': class_deliveries.filter(feedback='').count(),
+        })
+    
+    # Ordenar por promedio descendente
+    class_averages.sort(key=lambda x: x['average_grade'], reverse=True)
+    
+    # === RENDIMIENTO POR ESTUDIANTE ===
+    student_performance = []
+    for student in User.objects.filter(role='student'):
+        student_deliveries = deliveries_query.filter(student=student)
+        
+        avg_grade = student_deliveries.filter(
+            grade__isnull=False
+        ).aggregate(average=Avg('grade'))['average']
+        
+        # Contar tareas asignadas al estudiante
+        assigned_tasks = Task.objects.filter(
+            school_class__student_list=student
+        ).count()
+        
+        completion_rate = 0
+        if assigned_tasks > 0:
+            completion_rate = (student_deliveries.count() * 100) / assigned_tasks
+        
+        student_performance.append({
+            'student': student,
+            'total_deliveries': student_deliveries.count(),
+            'graded_deliveries': student_deliveries.exclude(feedback='').count(),
+            'average_grade': round(avg_grade, 2) if avg_grade else 0,
+            'assigned_tasks': assigned_tasks,
+            'completion_rate': round(completion_rate, 1),
+            'on_time_deliveries': student_deliveries.filter(
+                date__lte=models.F('task__delivery_date')
+            ).count(),
+            'late_deliveries': student_deliveries.filter(
+                date__gt=models.F('task__delivery_date')
+            ).count(),
+        })
+    
+    # Ordenar por promedio descendente
+    student_performance.sort(key=lambda x: x['average_grade'], reverse=True)
+    
+    # === ACTIVIDAD POR DOCENTE ===
+    teacher_activity = []
+    for teacher in User.objects.filter(role='teacher'):
+        teacher_deliveries = deliveries_query.filter(task__school_class__teacher=teacher)
+        
+        teacher_activity.append({
+            'teacher': teacher,
+            'classes_count': teacher.taught_classes.count(),
+            'tasks_created': Task.objects.filter(school_class__teacher=teacher).count(),
+            'total_deliveries': teacher_deliveries.count(),
+            'deliveries_reviewed': teacher_deliveries.exclude(feedback='').count(),
+            'pending_reviews': teacher_deliveries.filter(feedback='').count(),
+            'avg_response_time': 'N/A',  # Puedes implementar esto si tienes timestamps
+        })
+    
+    # === ESTADÍSTICAS DE CALIFICACIONES ===
+    graded_deliveries = deliveries_query.exclude(grade__isnull=True)
+    grade_distribution = {
+        'excellent': graded_deliveries.filter(grade__gte=9).count(),  # 9-10
+        'good': graded_deliveries.filter(grade__gte=7, grade__lt=9).count(),  # 7-8.99
+        'average': graded_deliveries.filter(grade__gte=5, grade__lt=7).count(),  # 5-6.99
+        'poor': graded_deliveries.filter(grade__lt=5).count(),  # 0-4.99
+    }
+    
+    total_graded = graded_deliveries.count()
+    if total_graded > 0:
+        grade_distribution['excellent_percentage'] = (grade_distribution['excellent'] * 100) / total_graded
+        grade_distribution['good_percentage'] = (grade_distribution['good'] * 100) / total_graded
+        grade_distribution['average_percentage'] = (grade_distribution['average'] * 100) / total_graded
+        grade_distribution['poor_percentage'] = (grade_distribution['poor'] * 100) / total_graded
+    
+    # === TENDENCIAS TEMPORALES (últimos 30 días) ===
+    thirty_days_ago = datetime.now().date() - timedelta(days=30)
+    daily_deliveries = []
+    
+    for i in range(30):
+        day = thirty_days_ago + timedelta(days=i)
+        count = deliveries_query.filter(date=day).count()
+        daily_deliveries.append({
+            'date': day,
+            'count': count
+        })
+    
+    context = {
+        'delivery_stats': delivery_stats,
+        'class_averages': class_averages,
+        'student_performance': student_performance[:20],  # Top 20
+        'teacher_activity': teacher_activity,
+        'grade_distribution': grade_distribution,
+        'daily_deliveries': daily_deliveries,
+        'date_from': date_from,
+        'date_to': date_to,
+        'total_graded': total_graded,
+    }
+    
+    return render(request, 'apptask/observer/reports.html', context)
+
+@login_required
+@user_passes_test(observer_required)
+def observer_academic_overview(request):
+    """Vista académica detallada para observadores"""
+    # Todas las clases con estadísticas completas
+    classes_data = []
+    for school_class in SchoolClass.objects.all():
+        tasks = school_class.tasks.all()
+        students = school_class.student_list.all()
+        deliveries = Delivery.objects.filter(task__school_class=school_class)
+        
+        # Calcular estadísticas
+        total_possible_deliveries = tasks.count() * students.count()
+        actual_deliveries = deliveries.count()
+        graded_deliveries = deliveries.exclude(feedback='').count()
+        
+        avg_grade = deliveries.filter(
+            grade__isnull=False
+        ).aggregate(average=Avg('grade'))['average']
+        
+        completion_rate = 0
+        if total_possible_deliveries > 0:
+            completion_rate = (actual_deliveries / total_possible_deliveries) * 100
+        
+        classes_data.append({
+            'class': school_class,
+            'teacher': school_class.teacher,
+            'tasks_count': tasks.count(),
+            'students_count': students.count(),
+            'total_deliveries': actual_deliveries,
+            'graded_deliveries': graded_deliveries,
+            'pending_deliveries': actual_deliveries - graded_deliveries,
+            'avg_grade': round(avg_grade, 2) if avg_grade else 0,
+            'completion_rate': round(completion_rate, 1),
+            'total_possible': total_possible_deliveries,
+        })
+    
+    # Estadísticas globales
+    global_stats = {
+        'total_classes': SchoolClass.objects.count(),
+        'total_students': User.objects.filter(role='student').count(),
+        'total_teachers': User.objects.filter(role='teacher').count(),
+        'total_tasks': Task.objects.count(),
+        'total_deliveries': Delivery.objects.count(),
+        'global_avg': Delivery.objects.filter(
+            grade__isnull=False
+        ).aggregate(avg=Avg('grade'))['avg'] or 0,
+    }
+    
+    context = {
+        'classes_data': classes_data,
+        'global_stats': global_stats,
+    }
+    
+    return render(request, 'apptask/observer/academic_overview.html', context)
+
+@login_required
+@user_passes_test(observer_required)
+def observer_export_report(request):
+    """Exportar reportes en formato CSV"""
+    import csv
+    from django.http import HttpResponse
+    from datetime import datetime
+    
+    report_type = request.GET.get('type', 'deliveries')
+    date_from = request.GET.get('date_from')
+    date_to = request.GET.get('date_to')
+    
+    # Crear respuesta HTTP con header CSV
+    response = HttpResponse(content_type='text/csv; charset=utf-8')
+    response['Content-Disposition'] = f'attachment; filename="reporte_{report_type}_{datetime.now().strftime("%Y%m%d_%H%M%S")}.csv"'
+    
+    writer = csv.writer(response)
+    
+    # Filtrar por fechas si se proporcionan
+    deliveries_query = Delivery.objects.all()
+    if date_from:
+        deliveries_query = deliveries_query.filter(date__gte=date_from)
+    if date_to:
+        deliveries_query = deliveries_query.filter(date__lte=date_to)
+    
+    if report_type == 'deliveries':
+        # Reporte de entregas
+        writer.writerow([
+            'Estudiante', 'Email', 'Tarea', 'Clase', 'Docente', 
+            'Fecha Entrega', 'Hora Entrega', 'Calificación', 'Estado', 
+            'Retroalimentación', 'Entrega Tardía'
+        ])
+        
+        for delivery in deliveries_query.select_related(
+            'student', 'task', 'task__school_class', 'task__school_class__teacher'
+        ).order_by('-date'):
+            writer.writerow([
+                delivery.student.display_name or delivery.student.name,
+                delivery.student.email,
+                delivery.task.theme,
+                delivery.task.school_class.identify,
+                delivery.task.school_class.teacher.display_name or delivery.task.school_class.teacher.name,
+                delivery.date.strftime('%Y-%m-%d'),
+                delivery.delivery_time.strftime('%H:%M:%S'),
+                delivery.grade if delivery.grade else 'Sin calificar',
+                'Calificada' if delivery.feedback else 'Pendiente',
+                delivery.feedback[:100] if delivery.feedback else '',  # Limitar texto
+                'Sí' if delivery.is_late else 'No'
+            ])
+    
+    elif report_type == 'students':
+        # Reporte de estudiantes
+        writer.writerow([
+            'Estudiante', 'Email', 'Clases Inscritas', 'Entregas Realizadas', 
+            'Entregas Calificadas', 'Promedio General', 'Entregas A Tiempo', 
+            'Entregas Tardías', 'Porcentaje Completado'
+        ])
+        
+        for student in User.objects.filter(role='student').order_by('first_name'):
+            student_deliveries = deliveries_query.filter(student=student)
+            graded_deliveries = student_deliveries.exclude(feedback='')
+            
+            avg_grade = graded_deliveries.aggregate(
+                avg=Avg('grade')
+            )['avg'] or 0
+            
+            # Calcular tareas asignadas
+            assigned_tasks = Task.objects.filter(
+                school_class__student_list=student
+            ).count()
+            
+            completion_rate = 0
+            if assigned_tasks > 0:
+                completion_rate = (student_deliveries.count() * 100) / assigned_tasks
+            
+            writer.writerow([
+                student.display_name or student.name,
+                student.email,
+                student.classes.count(),
+                student_deliveries.count(),
+                graded_deliveries.count(),
+                round(avg_grade, 2),
+                student_deliveries.filter(
+                    date__lte=models.F('task__delivery_date')
+                ).count(),
+                student_deliveries.filter(
+                    date__gt=models.F('task__delivery_date')
+                ).count(),
+                round(completion_rate, 1)
+            ])
+    
+    elif report_type == 'classes':
+        # Reporte de clases
+        writer.writerow([
+            'Clase', 'Curso', 'Docente', 'Email Docente', 'Estudiantes', 
+            'Tareas Asignadas', 'Total Entregas', 'Entregas Calificadas', 
+            'Promedio Clase', 'Porcentaje Completado'
+        ])
+        
+        for school_class in SchoolClass.objects.all().order_by('identify'):
+            class_deliveries = deliveries_query.filter(task__school_class=school_class)
+            graded_deliveries = class_deliveries.exclude(feedback='')
+            
+            avg_grade = graded_deliveries.aggregate(
+                avg=Avg('grade')
+            )['avg'] or 0
+            
+            students_count = school_class.student_list.count()
+            tasks_count = school_class.tasks.count()
+            expected_deliveries = students_count * tasks_count
+            
+            completion_rate = 0
+            if expected_deliveries > 0:
+                completion_rate = (class_deliveries.count() * 100) / expected_deliveries
+            
+            writer.writerow([
+                school_class.identify,
+                school_class.course,
+                school_class.teacher.display_name or school_class.teacher.name,
+                school_class.teacher.email,
+                students_count,
+                tasks_count,
+                class_deliveries.count(),
+                graded_deliveries.count(),
+                round(avg_grade, 2),
+                round(completion_rate, 1)
+            ])
+    
+    elif report_type == 'teachers':
+        # Reporte de docentes
+        writer.writerow([
+            'Docente', 'Email', 'Clases Asignadas', 'Tareas Creadas', 
+            'Entregas Recibidas', 'Entregas Calificadas', 'Entregas Pendientes',
+            'Promedio Calificaciones Otorgadas', 'Porcentaje Revisión'
+        ])
+        
+        for teacher in User.objects.filter(role='teacher').order_by('first_name'):
+            teacher_deliveries = deliveries_query.filter(task__school_class__teacher=teacher)
+            graded_deliveries = teacher_deliveries.exclude(feedback='')
+            
+            avg_grade_given = graded_deliveries.aggregate(
+                avg=Avg('grade')
+            )['avg'] or 0
+            
+            review_rate = 0
+            if teacher_deliveries.count() > 0:
+                review_rate = (graded_deliveries.count() * 100) / teacher_deliveries.count()
+            
+            writer.writerow([
+                teacher.display_name or teacher.name,
+                teacher.email,
+                teacher.taught_classes.count(),
+                Task.objects.filter(school_class__teacher=teacher).count(),
+                teacher_deliveries.count(),
+                graded_deliveries.count(),
+                teacher_deliveries.filter(feedback='').count(),
+                round(avg_grade_given, 2),
+                round(review_rate, 1)
+            ])
+    
+    return response

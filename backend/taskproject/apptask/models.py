@@ -23,6 +23,7 @@ class User(AbstractUser):
         ("student", "Estudiante"),
         ("teacher", "Docente"), 
         ("admin", "Administrador"),
+        ("observer", "Observador"),
     ]
     
     USERNAME_FIELD = "email"
