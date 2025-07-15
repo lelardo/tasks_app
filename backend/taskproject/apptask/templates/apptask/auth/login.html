@@ -1,41 +1,87 @@
 {% extends 'apptask/base.html' %}
-{% block title %}Iniciar Sesión - Sistema de Tareas{% endblock %}
+{% block title %}Iniciar Sesión - Sistema Académico{% endblock %}
 
 {% block content %}
-<div class="row justify-content-center">
-    <div class="col-md-6">
-        <div class="card">
-            <div class="card-header bg-primary text-white">
-                <h4 class="mb-0">
-                    <i class="bi bi-box-arrow-in-right"></i> Iniciar Sesión
-                </h4>
+<style>
+    body {
+        background-color: #d3d3d3;
+        margin: 0;
+        padding: 0;
+    }
+
+    .login-box {
+        margin-top: -170px;
+        background-color: #f5f5f5;
+        padding: 30px;
+        border-radius: 10px;
+        box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.1);
+    }
+
+    .login-header {
+        color: #d13b68;
+        font-weight: bold;
+        text-align: center;
+        font-size: 1.8rem;
+        margin-bottom: 20px;
+    }
+
+    .system-title {
+        text-align: center;
+        color: #002781;
+        font-size: 2rem;
+        font-weight: bold;
+        margin-bottom: 10px;
+    }
+
+    .university-name {
+        text-align: center;
+        color: #666;
+        font-size: 1.2rem;
+        margin-bottom: 30px;
+    }
+
+    .btn-login {
+        background-color: #210067;
+        color: white;
+    }
+
+    .btn-login:hover {
+        background-color: #1a0054;
+    }
+
+    .links {
+        text-align: center;
+        margin-top: 15px;
+        font-size: 0.9rem;
+    }
+</style>
+
+<!-- Login -->
+<div class="container d-flex justify-content-center align-items-center min-vh-100">
+    <div class="col-md-5 login-box">
+        <div class="system-title">Gestión de Tareas Académicas</div>
+        <div class="university-name">Universidad Nacional de Loja</div>
+        
+        <div class="login-header">INICIAR SESIÓN</div>
+        <form method="post">
+            {% csrf_token %}
+            <div class="mb-3">
+                <label for="email" class="form-label">Nombre de su usuario:</label>
+                <input type="email" class="form-control" id="email" name="email"
+                       placeholder="usuario@unl.edu.ec" required>
             </div>
-            <div class="card-body">
-                <form method="post">
-                    {% csrf_token %}
-                    
-                    <div class="mb-3">
-                        <label for="email" class="form-label">
-                            <i class="bi bi-envelope"></i> Email Institucional
-                        </label>
-                        <input type="email" class="form-control" id="email" name="email" 
-                               placeholder="usuario@uni.edu.ec" required>
-                    </div>
-                    
-                    <div class="mb-3">
-                        <label for="password" class="form-label">
-                            <i class="bi bi-lock"></i> Contraseña
-                        </label>
-                        <input type="password" class="form-control" id="password" name="password" required>
-                    </div>
-                    
-                    <div class="d-grid">
-                        <button type="submit" class="btn btn-primary">
-                            <i class="bi bi-box-arrow-in-right"></i> Iniciar Sesión
-                        </button>
-                    </div>
-                </form>
+            <div class="mb-3">
+                <label for="password" class="form-label">Contraseña:</label>
+                <input type="password" class="form-control" id="password" name="password" required>
             </div>
+            <div class="d-grid">
+                <button type="submit" class="btn btn-login">
+                    INICIAR SESIÓN
+                </button>
+            </div>
+        </form>
+        <div class="links">
+            <a href="#">Recuperar contraseña</a>
         </div>
     </div>
 </div>
