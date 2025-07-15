@@ -1,0 +1,1650 @@
+from django.shortcuts import render, get_object_or_404, redirect
+from django.contrib import messages
+from django.contrib.auth.decorators import login_required, user_passes_test
+from django.contrib.auth import authenticate, login, logout
+from django.utils import timezone
+from django.db import models
+from django.core.paginator import Paginator
+from rest_framework import status, permissions
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.response import Response
+from rest_framework.views import APIView
+from rest_framework_simplejwt.tokens import RefreshToken
+from django.http import JsonResponse
+from .models import Task, Delivery, SchoolClass, User
+from .forms import TaskForm, DeliveryForm, GradeDeliveryForm
+from django import forms
+from django.db.models import Count, Avg, Q, F
+from django.http import JsonResponse, HttpResponse
+import csv
+import json
+from datetime import datetime, timedelta
+from .serializers import (
+    UserRegistrationSerializer, 
+    UserLoginSerializer,
+    UserProfileSerializer,
+    UserListSerializer
+)
+
+class TaskForm(forms.ModelForm):
+    class Meta:
+        model = Task
+        fields = ['theme', 'instruction', 'school_class', 'delivery_date', 'delivery_time']
+        widgets = {
+            'delivery_date': forms.DateInput(attrs={'type': 'date'}),
+            'delivery_time': forms.TimeInput(attrs={'type': 'time'}),
+            'instruction': forms.Textarea(attrs={'rows': 5}),
+        }
+
+# === DECORADORES PERSONALIZADOS ===
+def admin_required(user):
+    """Verifica que el usuario sea administrador"""
+    return user.is_authenticated and user.role == 'admin'
+
+def teacher_required(user):
+    """Verifica que el usuario sea docente"""
+    return user.is_authenticated and user.role == 'teacher'
+
+def student_required(user):
+    """Verifica que el usuario sea estudiante"""
+    return user.is_authenticated and user.role == 'student'
+
+def teacher_or_admin_required(user):
+    """Verifica que el usuario sea docente o administrador"""
+    return user.is_authenticated and user.role in ['teacher', 'admin']
+
+# === VISTA PRINCIPAL CON REDIRECCIÓN POR ROL ===
+def home(request):
+    """Vista principal que redirige según autenticación y rol"""
+    if not request.user.is_authenticated:
+        return redirect('login')
+    
+    # Redirigir según el rol del usuario
+    if request.user.role == 'admin':
+        return redirect('admin_dashboard')  # Ir directamente al panel completo
+    elif request.user.role == 'teacher':
+        return redirect('teacher_dashboard')
+    elif request.user.role == 'student':
+        return redirect('student_dashboard')
+    elif request.user.role == 'observer':  # NUEVO
+        return redirect('observer_dashboard')
+    
+    else:
+        # Para usuarios sin rol específico, mostrar dashboard general
+        context = {
+            'user': request.user,
+            'user_role': request.user.role if hasattr(request.user, 'role') else 'none',
+        }
+        return render(request, 'apptask/home.html', context)
+    
+# === VISTAS ESPECÍFICAS POR ROL ===
+
+# DASHBOARDS POR ROL
+@login_required
+@user_passes_test(admin_required)
+def admin_dashboard(request):
+    """Dashboard para administradores"""
+    total_users = User.objects.count()
+    total_students = User.objects.filter(role='student').count()
+    total_teachers = User.objects.filter(role='teacher').count()
+    total_admins = User.objects.filter(role='admin').count()
+    total_classes = SchoolClass.objects.count()
+    total_tasks = Task.objects.count()
+    
+    recent_users = User.objects.order_by('-date_joined')[:5]
+    recent_classes = SchoolClass.objects.order_by('-id')[:5]
+    
+    context = {
+        'total_users': total_users,
+        'total_students': total_students,
+        'total_teachers': total_teachers,
+        'total_admins': total_admins,
+        'total_classes': total_classes,
+        'total_tasks': total_tasks,
+        'recent_users': recent_users,
+        'recent_classes': recent_classes,
+    }
+    return render(request, 'apptask/admin/dashboard.html', context)
+
+@login_required
+@user_passes_test(teacher_required)
+def teacher_dashboard(request):
+    """Dashboard principal para docentes"""
+    teacher = request.user
+    
+    # Obtener las clases del docente
+    my_classes = teacher.taught_classes.all()
+    
+    # Obtener tareas del docente
+    teacher_tasks = Task.objects.filter(school_class__teacher=teacher).order_by('-created_at')[:5]
+    
+    # Obtener entregas para revisar
+    teacher_deliveries = Delivery.objects.filter(
+        task__school_class__teacher=teacher
+    ).order_by('-date')[:10]
+    
+    # Calcular estadísticas
+    total_tasks = Task.objects.filter(school_class__teacher=teacher).count()
+    total_deliveries = Delivery.objects.filter(task__school_class__teacher=teacher).count()
+    pending_deliveries = Delivery.objects.filter(
+        task__school_class__teacher=teacher,
+        feedback=''  # Sin retroalimentación = pendiente
+    ).count()
+    graded_deliveries = Delivery.objects.filter(
+        task__school_class__teacher=teacher
+    ).exclude(feedback='').count()
+    
+    context = {
+        'my_classes': my_classes,
+        'tasks': teacher_tasks,
+        'recent_deliveries': teacher_deliveries,
+        'total_tasks': total_tasks,
+        'total_deliveries': total_deliveries,
+        'pending_deliveries': pending_deliveries,
+        'graded_deliveries': graded_deliveries,
+    }
+    
+    # Usar el template específico para docentes
+    return render(request, 'apptask/teacher/dashboard.html', context)
+
+@login_required
+@user_passes_test(student_required)
+def student_dashboard(request):
+    """Dashboard principal para estudiantes"""
+    student = request.user
+    
+    # Obtener las clases en las que está inscrito el estudiante
+    my_classes = student.classes.all()
+    
+    # Obtener tareas disponibles para el estudiante
+    available_tasks = Task.objects.filter(
+        school_class__student_list=student
+    ).order_by('-created_at')
+    
+    # Obtener entregas del estudiante
+    my_deliveries = Delivery.objects.filter(student=student).order_by('-date')
+    
+    # Tareas pendientes (que no ha entregado)
+    delivered_task_ids = my_deliveries.values_list('task_id', flat=True)
+    pending_tasks = available_tasks.exclude(id__in=delivered_task_ids)
+    
+    # Estadísticas
+    total_classes = my_classes.count()
+    total_available_tasks = available_tasks.count()
+    total_deliveries = my_deliveries.count()
+    pending_count = pending_tasks.count()
+    graded_count = my_deliveries.filter(grade__isnull=False).count()
+    
+    # Calcular porcentaje de completado (evitar división por cero)
+    completion_percentage = 0
+    if total_available_tasks > 0:
+        completion_percentage = round((graded_count * 100) / total_available_tasks, 1)
+    
+    context = {
+        'my_classes': my_classes,
+        'available_tasks': available_tasks[:5],  # Últimas 5 tareas
+        'pending_tasks': pending_tasks[:5],      # 5 tareas pendientes
+        'my_deliveries': my_deliveries[:5],      # Últimas 5 entregas
+        'total_classes': total_classes,
+        'total_available_tasks': total_available_tasks,
+        'total_deliveries': total_deliveries,
+        'pending_count': pending_count,
+        'graded_count': graded_count,
+        'completion_percentage': completion_percentage,  # Agregar este campo
+    }
+    
+    return render(request, 'apptask/student/dashboard.html', context)
+
+@login_required
+@user_passes_test(student_required)
+def student_task_detail(request, task_id):
+    """Vista de detalle de tarea específica para estudiantes"""
+    student = request.user
+    
+    # Verificar que el estudiante esté inscrito en la clase de esta tarea
+    task = get_object_or_404(
+        Task, 
+        id=task_id, 
+        school_class__student_list=student
+    )
+    
+    # Verificar si el estudiante ya entregó esta tarea
+    try:
+        my_delivery = Delivery.objects.get(task=task, student=student)
+    except Delivery.DoesNotExist:
+        my_delivery = None
+    
+    # Obtener todas las entregas (solo para ver estadísticas)
+    all_deliveries = task.delivery_list.all()
+    
+    context = {
+        'task': task,
+        'my_delivery': my_delivery,
+        'total_deliveries': all_deliveries.count(),
+        'total_students': task.school_class.student_list.count(),
+        'can_deliver': not my_delivery and not task.is_overdue,
+    }
+    
+    return render(request, 'apptask/student/task_detail.html', context)
+
+@login_required
+@user_passes_test(student_required)
+def student_delivery_create(request, task_id):
+    """Crear entrega para una tarea específica (solo estudiantes)"""
+    student = request.user
+    
+    # Verificar que el estudiante esté inscrito en la clase
+    task = get_object_or_404(
+        Task, 
+        id=task_id, 
+        school_class__student_list=student
+    )
+    
+    # Verificar que no haya entregado ya
+    if Delivery.objects.filter(task=task, student=student).exists():
+        messages.error(request, 'Ya has entregado esta tarea.')
+        return redirect('student_task_detail', task_id=task.id)
+    
+    # Verificar que la tarea no esté vencida
+    if task.is_overdue:
+        messages.error(request, 'Esta tarea ya está vencida.')
+        return redirect('student_task_detail', task_id=task.id)
+    
+    if request.method == 'POST':
+        file_url = request.POST.get('file_url')
+        
+        if not file_url:
+            messages.error(request, 'Debes proporcionar la URL del archivo.')
+            return render(request, 'apptask/student/delivery_form.html', {
+                'task': task,
+                'title': 'Entregar Tarea'
+            })
+        
+        # Crear la entrega
+        delivery = Delivery.objects.create(
+            task=task,
+            student=student,
+            revisor=task.school_class.teacher,  # Asignar al profesor de la clase
+            date=timezone.now().date(),
+            delivery_time=timezone.now().time(),
+            file_url=file_url
+        )
+        
+        messages.success(request, f'Tarea "{task.theme}" entregada exitosamente.')
+        return redirect('student_task_detail', task_id=task.id)
+    
+    return render(request, 'apptask/student/delivery_form.html', {
+        'task': task,
+        'title': 'Entregar Tarea'
+    })
+
+@login_required
+@user_passes_test(teacher_required)
+def student_delivery_list(request):
+    """Lista de entregas del estudiante"""
+    student = request.user
+    
+    # Obtener todas las entregas del estudiante
+    deliveries = Delivery.objects.filter(student=student).order_by('-date', '-delivery_time')
+    
+    # Filtros
+    status_filter = request.GET.get('status')
+    if status_filter == 'graded':
+        deliveries = deliveries.exclude(feedback='')
+    elif status_filter == 'pending':
+        deliveries = deliveries.filter(feedback='')
+    
+    # Estadísticas
+    total_deliveries = deliveries.count()
+    graded_deliveries = deliveries.exclude(feedback='').count()
+    pending_deliveries = deliveries.filter(feedback='').count()
+    
+    context = {
+        'deliveries': deliveries,
+        'current_status': status_filter,
+        'total_deliveries': total_deliveries,
+        'graded_deliveries': graded_deliveries,
+        'pending_deliveries': pending_deliveries,
+    }
+    
+    return render(request, 'apptask/student/delivery_list.html', context)
+
+@login_required
+@user_passes_test(teacher_required)
+def teacher_delivery_grade(request, delivery_id):
+    """Calificar entrega (solo docentes)"""
+    teacher = request.user
+    delivery = get_object_or_404(
+        Delivery, 
+        id=delivery_id, 
+        task__school_class__teacher=teacher
+    )
+    
+    if request.method == 'POST':
+        form = GradeDeliveryForm(request.POST, instance=delivery)
+        if form.is_valid():
+            delivery = form.save()
+            messages.success(request, f'Entrega de {delivery.student.display_name} calificada exitosamente.')
+            return redirect('teacher_task_detail', task_id=delivery.task.id)
+    else:
+        form = GradeDeliveryForm(instance=delivery)
+    
+    return render(request, 'apptask/teacher/grade_form.html', {
+        'form': form,
+        'delivery': delivery,
+        'title': 'Calificar Entrega',
+        'is_edit': bool(delivery.feedback)
+    })
+
+# === GESTIÓN DE USUARIOS (SOLO ADMIN) ===
+@login_required
+@user_passes_test(admin_required)
+def admin_user_list(request):
+    """Lista de usuarios para administradores"""
+    users = User.objects.all().order_by('-date_joined')
+    
+    # Filtros
+    role_filter = request.GET.get('role')
+    search = request.GET.get('search')
+    
+    if role_filter:
+        users = users.filter(role=role_filter)
+    
+    if search:
+        users = users.filter(
+            models.Q(first_name__icontains=search) |
+            models.Q(last_name__icontains=search) |
+            models.Q(email__icontains=search) |
+            models.Q(name__icontains=search)
+        )
+    
+    # Paginación
+    paginator = Paginator(users, 20)
+    page_number = request.GET.get('page')
+    users = paginator.get_page(page_number)
+    
+    context = {
+        'users': users,
+        'role_choices': User.ROLE_CHOICES,
+        'current_role': role_filter,
+        'current_search': search,
+    }
+    return render(request, 'apptask/admin/user_list.html', context)
+
+@login_required
+@user_passes_test(admin_required)
+def admin_user_create(request):
+    """Crear nuevo usuario (solo admin)"""
+    if request.method == 'POST':
+        email = request.POST.get('email')
+        first_name = request.POST.get('first_name')
+        last_name = request.POST.get('last_name')
+        name = request.POST.get('name')
+        username = request.POST.get('username')
+        role = request.POST.get('role')
+        phone = request.POST.get('phone')
+        dni = request.POST.get('dni')
+        password = request.POST.get('password')
+        
+        # Validaciones
+        if User.objects.filter(email=email).exists():
+            messages.error(request, 'Ya existe un usuario con este email.')
+            return render(request, 'apptask/admin/user_form.html', {
+                'role_choices': User.ROLE_CHOICES,
+                'form_data': request.POST
+            })
+        
+        if not email.endswith('@uni.edu.ec'):
+            messages.error(request, 'El email debe ser del dominio @uni.edu.ec')
+            return render(request, 'apptask/admin/user_form.html', {
+                'role_choices': User.ROLE_CHOICES,
+                'form_data': request.POST
+            })
+        
+        try:
+            user = User.objects.create(
+                email=email,
+                first_name=first_name,
+                last_name=last_name,
+                name=name or first_name,
+                username=username,
+                role=role,
+                phone=phone,
+                dni=dni,
+                is_active=True
+            )
+            user.set_password(password)
+            user.save()
+            
+            messages.success(request, f'Usuario {user.email} creado exitosamente.')
+            return redirect('admin_user_list')
+            
+        except Exception as e:
+            messages.error(request, f'Error al crear usuario: {str(e)}')
+    
+    context = {
+        'role_choices': User.ROLE_CHOICES,
+        'title': 'Crear Nuevo Usuario'
+    }
+    return render(request, 'apptask/admin/user_form.html', context)
+
+# === GESTIÓN DE CLASES (SOLO ADMIN) ===
+@login_required
+@user_passes_test(admin_required)
+def admin_class_list(request):
+    """Lista de clases para administradores"""
+    classes = SchoolClass.objects.all().order_by('-id')
+    
+    # Calcular estadísticas correctamente
+    total_students = 0
+    total_tasks = 0
+    unique_teachers = set()
+    
+    for school_class in classes:
+        total_students += school_class.student_list.count()
+        total_tasks += school_class.tasks.count()
+        unique_teachers.add(school_class.teacher.id)
+    
+    total_teachers = len(unique_teachers)
+    
+    context = {
+        'classes': classes,
+        'total_students': total_students,
+        'total_tasks': total_tasks,
+        'total_teachers': total_teachers,
+    }
+    return render(request, 'apptask/admin/class_list.html', context)
+
+@login_required
+@user_passes_test(admin_required)
+def admin_class_list(request):
+    """Lista de clases para administradores"""
+    classes = SchoolClass.objects.all().order_by('-id')
+    
+    # Contar estudiantes únicos en el sistema
+    from apptask.models import User
+    total_students = User.objects.filter(role='student').count()
+    
+    # Contar docentes únicos
+    total_teachers = User.objects.filter(role='teacher').count()
+    
+    # Contar tareas totales
+    total_tasks = 0
+    for school_class in classes:
+        total_tasks += school_class.tasks.count()
+    
+    context = {
+        'classes': classes,
+        'total_students': total_students,  # Total de estudiantes en el sistema
+        'total_tasks': total_tasks,
+        'total_teachers': total_teachers,
+    }
+    return render(request, 'apptask/admin/class_list.html', context)
+
+@login_required
+@user_passes_test(admin_required)
+def admin_class_edit(request, class_id):
+    """Editar clase existente (solo admin)"""
+    school_class = get_object_or_404(SchoolClass, id=class_id)
+    
+    if request.method == 'POST':
+        identify = request.POST.get('identify')
+        course = request.POST.get('course')
+        teacher_id = request.POST.get('teacher')
+        student_ids = request.POST.getlist('students')
+        
+        # Validar que no exista otra clase con el mismo identificador
+        if SchoolClass.objects.filter(identify=identify).exclude(id=class_id).exists():
+            messages.error(request, 'Ya existe otra clase con este identificador.')
+            teachers = User.objects.filter(role='teacher')
+            students = User.objects.filter(role='student').order_by('first_name', 'last_name')
+            return render(request, 'apptask/admin/class_form.html', {
+                'teachers': teachers,
+                'students': students,
+                'school_class': school_class,
+                'form_data': request.POST,
+                'title': f'Editar Clase: {school_class.identify}'
+            })
+        
+        try:
+            teacher = User.objects.get(id=teacher_id, role='teacher')
+            
+            # Actualizar la clase
+            school_class.identify = identify
+            school_class.course = course
+            school_class.teacher = teacher
+            school_class.save()
+            
+            # Actualizar estudiantes
+            school_class.student_list.clear()  # Remover todos los estudiantes actuales
+            if student_ids:
+                students = User.objects.filter(id__in=student_ids, role='student')
+                school_class.student_list.add(*students)
+            
+            messages.success(request, f'Clase {school_class.identify} actualizada exitosamente.')
+            return redirect('admin_class_list')
+            
+        except Exception as e:
+            messages.error(request, f'Error al actualizar clase: {str(e)}')
+    
+    teachers = User.objects.filter(role='teacher')
+    students = User.objects.filter(role='student').order_by('first_name', 'last_name')
+    
+    # Preparar datos para el formulario
+    form_data = {
+        'identify': school_class.identify,
+        'course': school_class.course,
+        'teacher': school_class.teacher.id,
+        'students': list(school_class.student_list.values_list('id', flat=True))
+    }
+    
+    context = {
+        'teachers': teachers,
+        'students': students,
+        'school_class': school_class,
+        'form_data': form_data,
+        'title': f'Editar Clase: {school_class.identify}'
+    }
+    return render(request, 'apptask/admin/class_form.html', context)
+
+@login_required
+@user_passes_test(admin_required)
+def admin_class_delete(request, class_id):
+    """Eliminar clase (solo admin)"""
+    school_class = get_object_or_404(SchoolClass, id=class_id)
+    
+    if request.method == 'POST':
+        class_name = school_class.identify
+        
+        # Verificar si la clase tiene tareas asociadas
+        if school_class.tasks.exists():
+            messages.error(request, f'No se puede eliminar la clase {class_name} porque tiene tareas asociadas.')
+            return redirect('admin_class_list')
+        
+        try:
+            school_class.delete()
+            messages.success(request, f'Clase {class_name} eliminada exitosamente.')
+        except Exception as e:
+            messages.error(request, f'Error al eliminar la clase: {str(e)}')
+    
+    return redirect('admin_class_list')
+
+
+@login_required
+@user_passes_test(admin_required)
+def admin_system_config(request):
+    """Configuración del sistema (solo admin)"""
+    from django.conf import settings
+    from django.core.management import call_command
+    import os
+    import sys
+    from datetime import datetime
+    import json
+    
+    if request.method == 'POST':
+        action = request.POST.get('action')
+        
+        if action == 'clear_logs':
+            try:
+                log_files = ['django.log', 'error.log', 'access.log']
+                cleared_files = []
+                
+                for log_file in log_files:
+                    log_path = os.path.join(settings.BASE_DIR, log_file)
+                    if os.path.exists(log_path):
+                        with open(log_path, 'w') as f:
+                            f.write('')
+                        cleared_files.append(log_file)
+                
+                if cleared_files:
+                    messages.success(request, f'Logs limpiados: {", ".join(cleared_files)}')
+                else:
+                    messages.info(request, 'No se encontraron archivos de log.')
+            except Exception as e:
+                messages.error(request, f'Error al limpiar logs: {str(e)}')
+        
+        elif action == 'backup_db':
+            try:
+                # Crear directorio de backups
+                backup_dir = os.path.join(settings.BASE_DIR, 'backups')
+                os.makedirs(backup_dir, exist_ok=True)
+                
+                # Crear nombre del archivo con timestamp
+                timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+                backup_filename = f'backup_{timestamp}.json'
+                backup_path = os.path.join(backup_dir, backup_filename)
+                
+                # Crear el backup usando dumpdata
+                with open(backup_path, 'w', encoding='utf-8') as backup_file:
+                    call_command('dumpdata', 
+                               '--natural-foreign', 
+                               '--natural-primary',
+                               '--indent=2',
+                               stdout=backup_file)
+                
+                # Verificar que el archivo se creó correctamente
+                if os.path.exists(backup_path):
+                    file_size = os.path.getsize(backup_path)
+                    file_size_mb = file_size / (1024 * 1024)
+                    
+                    messages.success(request, 
+                        f'Backup creado exitosamente: {backup_filename} ({file_size_mb:.2f} MB)')
+                else:
+                    messages.error(request, 'Error: No se pudo crear el archivo de backup.')
+                    
+            except Exception as e:
+                messages.error(request, f'Error al crear backup: {str(e)}')
+        
+        elif action == 'update_settings':
+            # Actualizar configuraciones
+            messages.success(request, 'Configuraciones actualizadas exitosamente.')
+        
+        return redirect('admin_system_config')
+    
+    # Obtener información del sistema
+    system_info = {
+        'python_version': sys.version,
+        'django_version': '5.2.4',
+        'debug_mode': settings.DEBUG,
+        'database_engine': settings.DATABASES['default']['ENGINE'],
+        'time_zone': settings.TIME_ZONE,
+        'language_code': settings.LANGUAGE_CODE,
+        'installed_apps_count': len(settings.INSTALLED_APPS),
+        'secret_key_set': bool(settings.SECRET_KEY),
+    }
+    
+    # Estadísticas del sistema
+    stats = {
+        'total_users': User.objects.count(),
+        'active_users': User.objects.filter(is_active=True).count(),
+        'total_classes': SchoolClass.objects.count(),
+        'total_tasks': Task.objects.count(),
+        'total_deliveries': Delivery.objects.count(),
+    }
+    
+    # Información de logs
+    log_info = {'log_file_exists': False}
+    try:
+        log_file = os.path.join(settings.BASE_DIR, 'django.log')
+        if os.path.exists(log_file):
+            log_info['log_file_exists'] = True
+            log_info['log_file_size'] = os.path.getsize(log_file)
+    except Exception as e:
+        log_info['error'] = str(e)
+    
+    # Usuarios por rol
+    roles_stats = {
+        'admins': User.objects.filter(role='admin').count(),
+        'teachers': User.objects.filter(role='teacher').count(),
+        'students': User.objects.filter(role='student').count(),
+        'observers': User.objects.filter(role='observer').count(),
+    }
+    
+    # Información de backups
+    backup_info = {
+        'backup_files': [],
+        'backup_count': 0,
+        'backup_total_size': 0
+    }
+    
+    try:
+        backup_dir = os.path.join(settings.BASE_DIR, 'backups')
+        if os.path.exists(backup_dir):
+            backup_files = []
+            for filename in os.listdir(backup_dir):
+                if filename.endswith('.json'):
+                    file_path = os.path.join(backup_dir, filename)
+                    file_stat = os.stat(file_path)
+                    backup_files.append({
+                        'filename': filename,
+                        'size': file_stat.st_size,
+                        'date': datetime.fromtimestamp(file_stat.st_mtime),
+                        'path': file_path
+                    })
+            
+            # Ordenar por fecha (más reciente primero)
+            backup_files.sort(key=lambda x: x['date'], reverse=True)
+            
+            backup_info['backup_files'] = backup_files
+            backup_info['backup_count'] = len(backup_files)
+            backup_info['backup_total_size'] = sum(f['size'] for f in backup_files)
+    except Exception as e:
+        backup_info['error'] = str(e)
+    
+    # Actividad reciente
+    recent_activity = {
+        'recent_users': User.objects.order_by('-date_joined')[:5],
+        'recent_tasks': Task.objects.order_by('-created_at')[:5],
+        'recent_deliveries': Delivery.objects.order_by('-date')[:5],
+    }
+    
+    context = {
+        'system_info': system_info,
+        'stats': stats,
+        'log_info': log_info,
+        'roles_stats': roles_stats,
+        'backup_info': backup_info,
+        'recent_activity': recent_activity,
+    }
+    
+    return render(request, 'apptask/admin/system_config.html', context)
+
+@login_required
+@user_passes_test(admin_required)
+def admin_download_backup(request, filename):
+    """Descargar archivo de backup"""
+    from django.http import HttpResponse, Http404
+    from django.conf import settings
+    import os
+    import mimetypes
+    
+    # Verificar que el archivo existe y es seguro
+    backup_dir = os.path.join(settings.BASE_DIR, 'backups')
+    file_path = os.path.join(backup_dir, filename)
+    
+    # Verificar que el archivo existe y está en el directorio correcto
+    if not os.path.exists(file_path) or not file_path.startswith(backup_dir):
+        raise Http404("Archivo no encontrado")
+    
+    # Verificar que es un archivo JSON
+    if not filename.endswith('.json'):
+        raise Http404("Archivo no válido")
+    
+    try:
+        with open(file_path, 'rb') as backup_file:
+            response = HttpResponse(backup_file.read(), content_type='application/json')
+            response['Content-Disposition'] = f'attachment; filename="{filename}"'
+            return response
+    except Exception as e:
+        messages.error(request, f'Error al descargar backup: {str(e)}')
+        return redirect('admin_system_config')
+
+# === GESTIÓN DE TAREAS (SOLO DOCENTES) ===
+@login_required
+@user_passes_test(teacher_required)
+def teacher_task_create(request):
+    """Crear nueva tarea (solo docentes)"""
+    teacher = request.user
+    
+    if request.method == 'POST':
+        form = TaskForm(request.POST)
+        # Filtrar solo las clases del docente
+        form.fields['school_class'].queryset = teacher.taught_classes.all()
+        
+        if form.is_valid():
+            task = form.save()
+            messages.success(request, f'Tarea "{task.theme}" creada exitosamente.')
+            return redirect('teacher_task_detail', task_id=task.id)
+    else:
+        form = TaskForm()
+        # Filtrar solo las clases del docente
+        form.fields['school_class'].queryset = teacher.taught_classes.all()
+    
+    return render(request, 'apptask/teacher/task_form.html', {
+        'form': form,
+        'title': 'Crear Nueva Tarea'
+    })
+
+@login_required
+@user_passes_test(teacher_required)
+def teacher_task_detail(request, task_id):
+    """Vista de detalle de tarea específica para docentes"""
+    teacher = request.user
+    task = get_object_or_404(Task, id=task_id, school_class__teacher=teacher)
+    
+    # Obtener entregas de esta tarea
+    deliveries = task.delivery_list.all().order_by('-date', '-delivery_time')
+    
+    # Estadísticas de la tarea
+    total_students = task.school_class.student_list.count()
+    total_deliveries = deliveries.count()
+    graded_deliveries = deliveries.filter(grade__isnull=False).count()
+    pending_deliveries = deliveries.filter(grade__isnull=True).count()
+    
+    # Estudiantes que no han entregado
+    students_delivered = deliveries.values_list('student_id', flat=True)
+    students_not_delivered = task.school_class.student_list.exclude(id__in=students_delivered)
+    
+    context = {
+        'task': task,
+        'deliveries': deliveries,
+        'total_students': total_students,
+        'total_deliveries': total_deliveries,
+        'graded_deliveries': graded_deliveries,
+        'pending_deliveries': pending_deliveries,
+        'students_not_delivered': students_not_delivered,
+    }
+    
+    return render(request, 'apptask/teacher/task_detail.html', context)
+
+@login_required
+@user_passes_test(teacher_required)
+def teacher_task_list(request):
+    """Lista de tareas del docente"""
+    teacher = request.user
+    tasks = Task.objects.filter(school_class__teacher=teacher).order_by('-created_at')
+    
+    # Filtros
+    class_filter = request.GET.get('class')
+    if class_filter:
+        tasks = tasks.filter(school_class_id=class_filter)
+    
+    context = {
+        'tasks': tasks,
+        'my_classes': teacher.taught_classes.all(),
+        'current_class': class_filter,
+    }
+    return render(request, 'apptask/teacher/task_list.html', context)
+
+# === VISTAS PARA ESTUDIANTES ===
+@login_required
+@user_passes_test(student_required)
+def student_task_list(request):
+    """Lista de tareas disponibles para el estudiante"""
+    student = request.user
+    
+    # Obtener todas las tareas de las clases en las que está inscrito
+    available_tasks = Task.objects.filter(
+        school_class__student_list=student
+    ).order_by('-created_at')
+    
+    # Obtener las entregas del estudiante
+    my_deliveries = Delivery.objects.filter(student=student)
+    my_deliveries_tasks = [delivery.task for delivery in my_deliveries]
+    
+    context = {
+        'available_tasks': available_tasks,
+        'my_deliveries': my_deliveries,
+        'my_deliveries_tasks': my_deliveries_tasks,
+    }
+    return render(request, 'apptask/student/task_list.html', context)
+
+# === VISTAS DE AUTENTICACIÓN (mantener como están) ===
+def user_login_page(request):
+    """Página de login"""
+    if request.user.is_authenticated:
+        return redirect('home')
+    
+    if request.method == 'POST':
+        email = request.POST.get('email')
+        password = request.POST.get('password')
+        
+        try:
+            user = User.objects.get(email=email)
+            if user.check_password(password):
+                login(request, user)
+                messages.success(request, f'Bienvenido/a {user.display_name}')
+                return redirect('home')
+            else:
+                messages.error(request, 'Credenciales incorrectas')
+        except User.DoesNotExist:
+            messages.error(request, 'Usuario no encontrado')
+    
+    return render(request, 'apptask/auth/login.html')
+
+def user_logout_view(request):
+    """Cerrar sesión"""
+    logout(request)
+    messages.success(request, 'Has cerrado sesión correctamente')
+    return redirect('login')
+
+@login_required
+def task_detail(request, task_id):
+    """Detalle de una tarea específica"""
+    task = get_object_or_404(Task, id=task_id)
+    deliveries = task.delivery_list.all()
+    return render(request, 'apptask/task_detail.html', {
+        'task': task,
+        'deliveries': deliveries
+    })
+
+@login_required
+def task_edit(request, task_id):
+    """Editar una tarea existente"""
+    task = get_object_or_404(Task, id=task_id)
+    
+    if request.method == 'POST':
+        form = TaskForm(request.POST, instance=task)
+        if form.is_valid():
+            task = form.save()
+            messages.success(request, f'Tarea "{task.theme}" actualizada exitosamente.')
+            return redirect('task_detail', task_id=task.id)
+    else:
+        form = TaskForm(instance=task)
+    
+    return render(request, 'apptask/task_form.html', {
+        'form': form,
+        'title': 'Editar Tarea',
+        'task': task
+    })
+
+@login_required
+def delivery_create(request, task_id):
+    """Crear una nueva entrega para una tarea"""
+    task = get_object_or_404(Task, id=task_id)
+    
+    if request.method == 'POST':
+        form = DeliveryForm(request.POST, task=task)
+        if form.is_valid():
+            delivery = form.save(commit=False)
+            delivery.task = task
+            delivery.date = timezone.now().date()
+            delivery.delivery_time = timezone.now().time()
+            # Por ahora asignamos un profesor por defecto como revisor
+            delivery.revisor = User.objects.filter(role='teacher').first()
+            delivery.save()
+            messages.success(request, 'Entrega realizada exitosamente.')
+            return redirect('task_detail', task_id=task.id)
+    else:
+        form = DeliveryForm(task=task)
+    
+    return render(request, 'apptask/delivery_form.html', {
+        'form': form,
+        'task': task,
+        'title': 'Nueva Entrega'
+    })
+
+@login_required
+def delivery_grade(request, delivery_id):
+    """Calificar una entrega"""
+    delivery = get_object_or_404(Delivery, id=delivery_id)
+    
+    if request.method == 'POST':
+        form = GradeDeliveryForm(request.POST, instance=delivery)
+        if form.is_valid():
+            delivery = form.save()
+            messages.success(request, f'Entrega de {delivery.student.name} calificada exitosamente.')
+            return redirect('task_detail', task_id=delivery.task.id)
+    else:
+        form = GradeDeliveryForm(instance=delivery)
+    
+    return render(request, 'apptask/grade_form.html', {
+        'form': form,
+        'delivery': delivery,
+        'title': 'Calificar Entrega'
+    })
+
+@login_required
+def delivery_edit_grade(request, delivery_id):
+    """Editar la calificación de una entrega existente"""
+    delivery = get_object_or_404(Delivery, id=delivery_id)
+    
+    if request.method == 'POST':
+        form = GradeDeliveryForm(request.POST, instance=delivery)
+        if form.is_valid():
+            delivery = form.save()
+            messages.success(request, f'Calificación de {delivery.student.name} actualizada exitosamente.')
+            return redirect('task_detail', task_id=delivery.task.id)
+    else:
+        form = GradeDeliveryForm(instance=delivery)
+    
+    return render(request, 'apptask/grade_form.html', {
+        'form': form,
+        'delivery': delivery,
+        'title': 'Editar Calificación',
+        'is_edit': True
+    })
+
+@login_required
+def delivery_list(request):
+    """Lista todas las entregas"""
+    deliveries = Delivery.objects.all().order_by('-date')
+    return render(request, 'apptask/delivery_list.html', {'deliveries': deliveries})
+
+# === API VIEWS (mantener todas como están) ===
+class UserRegistrationView(APIView):
+    """Registro de nuevos usuarios"""
+    permission_classes = [permissions.AllowAny]
+    
+    def post(self, request):
+        serializer = UserRegistrationSerializer(data=request.data)
+        if serializer.is_valid():
+            user = serializer.save()
+            
+            # Generar tokens JWT
+            refresh = RefreshToken.for_user(user)
+            
+            return Response({
+                'message': 'Usuario registrado exitosamente',
+                'user': UserProfileSerializer(user).data,
+                'tokens': {
+                    'refresh': str(refresh),
+                    'access': str(refresh.access_token),
+                }
+            }, status=status.HTTP_201_CREATED)
+        
+        return Response(
+            serializer.errors, 
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+class UserLoginView(APIView):
+    """Autenticación de usuarios"""
+    permission_classes = [permissions.AllowAny]
+    
+    def post(self, request):
+        serializer = UserLoginSerializer(data=request.data)
+        if serializer.is_valid():
+            user = serializer.validated_data['user']
+            
+            # Generar tokens JWT
+            refresh = RefreshToken.for_user(user)
+            
+            return Response({
+                'message': 'Inicio de sesión exitoso',
+                'user': UserProfileSerializer(user).data,
+                'tokens': {
+                    'refresh': str(refresh),
+                    'access': str(refresh.access_token),
+                }
+            }, status=status.HTTP_200_OK)
+        
+        return Response(
+            serializer.errors,
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+class UserLogoutView(APIView):
+    """Cerrar sesión (blacklist token)"""
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def post(self, request):
+        try:
+            refresh_token = request.data["refresh"]
+            token = RefreshToken(refresh_token)
+            token.blacklist()
+            
+            return Response({
+                'message': 'Sesión cerrada exitosamente'
+            }, status=status.HTTP_200_OK)
+        except Exception as e:
+            return Response(
+                {'error': 'Token inválido'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+class UserProfileView(APIView):
+    """Perfil del usuario autenticado"""
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def get(self, request):
+        serializer = UserProfileSerializer(request.user)
+        return Response(serializer.data)
+    
+    def put(self, request):
+        serializer = UserProfileSerializer(
+            request.user, 
+            data=request.data, 
+            partial=True
+        )
+        if serializer.is_valid():
+            serializer.save()
+            return Response({
+                'message': 'Perfil actualizado exitosamente',
+                'user': serializer.data
+            })
+        return Response(
+            serializer.errors,
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+class UserListView(APIView):
+    """Lista de usuarios (solo admin)"""
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def get(self, request):
+        # Verificar permisos de admin
+        if not request.user.has_role('admin'):
+            return Response(
+                {'error': 'No tiene permisos para esta acción'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        users = User.objects.all().order_by('-date_joined')
+        serializer = UserListSerializer(users, many=True)
+        return Response(serializer.data)
+
+# === PERMISOS PERSONALIZADOS ===
+class IsTeacherOrAdmin(permissions.BasePermission):
+    """Permiso para docentes y administradores"""
+    
+    def has_permission(self, request, view):
+        return (
+            request.user.is_authenticated and 
+            request.user.role in ['teacher', 'admin']
+        )
+
+class IsAdmin(permissions.BasePermission):
+    """Permiso solo para administradores"""
+    
+    def has_permission(self, request, view):
+        return (
+            request.user.is_authenticated and 
+            request.user.role == 'admin'
+        )
+
+# === VISTAS WEB ADICIONALES ===
+def user_register_page(request):
+    """Página de registro"""
+    if request.method == 'POST':
+        # Implementar lógica de registro
+        pass
+    
+    return render(request, 'apptask/auth/register.html')
+
+@login_required
+def user_profile_page(request):
+    """Página de perfil de usuario"""
+    user = request.user
+    
+    # Calcular estadísticas según el rol
+    context = {'user': user}
+    
+    if user.role == 'teacher':
+        # Estadísticas para docentes
+        total_tasks = Task.objects.filter(school_class__teacher=user).count()
+        total_deliveries = Delivery.objects.filter(task__school_class__teacher=user).count()
+        context.update({
+            'total_tasks': total_tasks,
+            'total_deliveries': total_deliveries,
+        })
+    
+    if request.method == 'POST':
+        # Actualizar datos del perfil
+        user.first_name = request.POST.get('first_name', user.first_name)
+        user.last_name = request.POST.get('last_name', user.last_name)
+        user.name = request.POST.get('name', user.name)
+        user.username = request.POST.get('username', user.username)
+        user.phone = request.POST.get('phone', user.phone)
+        user.dni = request.POST.get('dni', user.dni)
+        
+        try:
+            user.save()
+            messages.success(request, 'Perfil actualizado exitosamente.')
+        except Exception as e:
+            messages.error(request, f'Error al actualizar el perfil: {str(e)}')
+        
+        return redirect('profile')
+    
+    return render(request, 'apptask/auth/profile.html', context)
+
+@login_required
+def change_password_view(request):
+    """Cambiar contraseña del usuario"""
+    if request.method == 'POST':
+        current_password = request.POST.get('current_password')
+        new_password = request.POST.get('new_password')
+        confirm_password = request.POST.get('confirm_password')
+        
+        # Verificar contraseña actual
+        if not request.user.check_password(current_password):
+            messages.error(request, 'La contraseña actual es incorrecta.')
+            return redirect('profile')
+        
+        # Verificar que las nuevas contraseñas coincidan
+        if new_password != confirm_password:
+            messages.error(request, 'Las nuevas contraseñas no coinciden.')
+            return redirect('profile')
+         
+        # Verificar longitud mínima
+        if len(new_password) < 8:
+            messages.error(request, 'La nueva contraseña debe tener al menos 8 caracteres.')
+            return redirect('profile')
+        
+        # Cambiar contraseña
+        try:
+            request.user.set_password(new_password)
+            request.user.save()
+            messages.success(request, 'Contraseña cambiada exitosamente. Por favor, inicia sesión nuevamente.')
+            return redirect('login')
+        except Exception as e:
+            messages.error(request, f'Error al cambiar la contraseña: {str(e)}')
+    
+    return redirect('profile')
+
+# === DECORADORES PERSONALIZADOS ===
+def observer_required(user):
+    """Verifica que el usuario sea observador"""
+    return user.is_authenticated and user.role == 'observer'
+
+def observer_or_admin_required(user):
+    """Verifica que el usuario sea observador o administrador"""
+    return user.is_authenticated and user.role in ['observer', 'admin']
+
+# === VISTAS PARA OBSERVADORES ===
+@login_required
+@user_passes_test(observer_required)
+def observer_dashboard(request):
+    """Dashboard principal para observadores"""
+    # Estadísticas generales del sistema
+    total_users = User.objects.count()
+    total_students = User.objects.filter(role='student').count()
+    total_teachers = User.objects.filter(role='teacher').count()
+    total_classes = SchoolClass.objects.count()
+    total_tasks = Task.objects.count()
+    total_deliveries = Delivery.objects.count()
+    
+    # Estadísticas de entregas
+    pending_deliveries = Delivery.objects.filter(feedback='').count()
+    graded_deliveries = Delivery.objects.exclude(feedback='').count()
+    
+    # Calcular porcentajes (evitar división por cero)
+    graded_percentage = 0
+    pending_percentage = 0
+    if total_deliveries > 0:
+        graded_percentage = (graded_deliveries * 100) / total_deliveries
+        pending_percentage = (pending_deliveries * 100) / total_deliveries
+    
+    # Actividad reciente
+    recent_tasks = Task.objects.order_by('-created_at')[:5]
+    recent_deliveries = Delivery.objects.order_by('-date')[:5]
+    
+    # Promedio general de calificaciones
+    from django.db.models import Avg
+    avg_grade = Delivery.objects.filter(grade__isnull=False).aggregate(
+        average=Avg('grade')
+    )['average']
+    
+    context = {
+        'total_users': total_users,
+        'total_students': total_students,
+        'total_teachers': total_teachers,
+        'total_classes': total_classes,
+        'total_tasks': total_tasks,
+        'total_deliveries': total_deliveries,
+        'pending_deliveries': pending_deliveries,
+        'graded_deliveries': graded_deliveries,
+        'graded_percentage': graded_percentage,
+        'pending_percentage': pending_percentage,
+        'recent_tasks': recent_tasks,
+        'recent_deliveries': recent_deliveries,
+        'avg_grade': avg_grade,
+    }
+    
+    return render(request, 'apptask/observer/dashboard.html', context)
+
+@login_required
+@user_passes_test(observer_required)
+def observer_reports(request):
+    """Centro de reportes detallados para observadores"""
+    from django.db.models import Avg, Count, Q, Max, Min
+    from datetime import datetime, timedelta
+    
+    # Filtros de fecha
+    date_from = request.GET.get('date_from')
+    date_to = request.GET.get('date_to')
+    
+    # Query base para entregas
+    deliveries_query = Delivery.objects.all()
+    if date_from:
+        deliveries_query = deliveries_query.filter(date__gte=date_from)
+    if date_to:
+        deliveries_query = deliveries_query.filter(date__lte=date_to)
+    
+    # === ESTADÍSTICAS GENERALES ===
+    delivery_stats = {
+        'total': deliveries_query.count(),
+        'graded': deliveries_query.exclude(feedback='').count(),
+        'pending': deliveries_query.filter(feedback='').count(),
+        'on_time': deliveries_query.filter(
+            date__lte=models.F('task__delivery_date')
+        ).count(),
+        'late': deliveries_query.filter(
+            date__gt=models.F('task__delivery_date')
+        ).count(),
+    }
+    
+    # Calcular porcentajes
+    total = delivery_stats['total']
+    if total > 0:
+        delivery_stats['graded_percentage'] = (delivery_stats['graded'] * 100) / total
+        delivery_stats['pending_percentage'] = (delivery_stats['pending'] * 100) / total
+        delivery_stats['on_time_percentage'] = (delivery_stats['on_time'] * 100) / total
+        delivery_stats['late_percentage'] = (delivery_stats['late'] * 100) / total
+    else:
+        delivery_stats['graded_percentage'] = 0
+        delivery_stats['pending_percentage'] = 0
+        delivery_stats['on_time_percentage'] = 0
+        delivery_stats['late_percentage'] = 0
+    
+    # === ESTADÍSTICAS POR CLASE ===
+    class_averages = []
+    for school_class in SchoolClass.objects.all():
+        class_deliveries = deliveries_query.filter(task__school_class=school_class)
+        
+        avg_grade = class_deliveries.filter(
+            grade__isnull=False
+        ).aggregate(average=Avg('grade'))['average']
+        
+        total_students = school_class.student_list.count()
+        total_tasks = school_class.tasks.count()
+        expected_deliveries = total_students * total_tasks
+        actual_deliveries = class_deliveries.count()
+        
+        completion_rate = 0
+        if expected_deliveries > 0:
+            completion_rate = (actual_deliveries * 100) / expected_deliveries
+        
+        class_averages.append({
+            'class': school_class,
+            'average_grade': round(avg_grade, 2) if avg_grade else 0,
+            'total_deliveries': actual_deliveries,
+            'expected_deliveries': expected_deliveries,
+            'completion_rate': round(completion_rate, 1),
+            'graded_count': class_deliveries.exclude(feedback='').count(),
+            'pending_count': class_deliveries.filter(feedback='').count(),
+        })
+    
+    # Ordenar por promedio descendente
+    class_averages.sort(key=lambda x: x['average_grade'], reverse=True)
+    
+    # === RENDIMIENTO POR ESTUDIANTE ===
+    student_performance = []
+    for student in User.objects.filter(role='student'):
+        student_deliveries = deliveries_query.filter(student=student)
+        
+        avg_grade = student_deliveries.filter(
+            grade__isnull=False
+        ).aggregate(average=Avg('grade'))['average']
+        
+        # Contar tareas asignadas al estudiante
+        assigned_tasks = Task.objects.filter(
+            school_class__student_list=student
+        ).count()
+        
+        completion_rate = 0
+        if assigned_tasks > 0:
+            completion_rate = (student_deliveries.count() * 100) / assigned_tasks
+        
+        student_performance.append({
+            'student': student,
+            'total_deliveries': student_deliveries.count(),
+            'graded_deliveries': student_deliveries.exclude(feedback='').count(),
+            'average_grade': round(avg_grade, 2) if avg_grade else 0,
+            'assigned_tasks': assigned_tasks,
+            'completion_rate': round(completion_rate, 1),
+            'on_time_deliveries': student_deliveries.filter(
+                date__lte=models.F('task__delivery_date')
+            ).count(),
+            'late_deliveries': student_deliveries.filter(
+                date__gt=models.F('task__delivery_date')
+            ).count(),
+        })
+    
+    # Ordenar por promedio descendente
+    student_performance.sort(key=lambda x: x['average_grade'], reverse=True)
+    
+    # === ACTIVIDAD POR DOCENTE ===
+    teacher_activity = []
+    for teacher in User.objects.filter(role='teacher'):
+        teacher_deliveries = deliveries_query.filter(task__school_class__teacher=teacher)
+        
+        teacher_activity.append({
+            'teacher': teacher,
+            'classes_count': teacher.taught_classes.count(),
+            'tasks_created': Task.objects.filter(school_class__teacher=teacher).count(),
+            'total_deliveries': teacher_deliveries.count(),
+            'deliveries_reviewed': teacher_deliveries.exclude(feedback='').count(),
+            'pending_reviews': teacher_deliveries.filter(feedback='').count(),
+            'avg_response_time': 'N/A',  # Puedes implementar esto si tienes timestamps
+        })
+    
+    # === ESTADÍSTICAS DE CALIFICACIONES ===
+    graded_deliveries = deliveries_query.exclude(grade__isnull=True)
+    grade_distribution = {
+        'excellent': graded_deliveries.filter(grade__gte=9).count(),  # 9-10
+        'good': graded_deliveries.filter(grade__gte=7, grade__lt=9).count(),  # 7-8.99
+        'average': graded_deliveries.filter(grade__gte=5, grade__lt=7).count(),  # 5-6.99
+        'poor': graded_deliveries.filter(grade__lt=5).count(),  # 0-4.99
+    }
+    
+    total_graded = graded_deliveries.count()
+    if total_graded > 0:
+        grade_distribution['excellent_percentage'] = (grade_distribution['excellent'] * 100) / total_graded
+        grade_distribution['good_percentage'] = (grade_distribution['good'] * 100) / total_graded
+        grade_distribution['average_percentage'] = (grade_distribution['average'] * 100) / total_graded
+        grade_distribution['poor_percentage'] = (grade_distribution['poor'] * 100) / total_graded
+    
+    # === TENDENCIAS TEMPORALES (últimos 30 días) ===
+    thirty_days_ago = datetime.now().date() - timedelta(days=30)
+    daily_deliveries = []
+    
+    for i in range(30):
+        day = thirty_days_ago + timedelta(days=i)
+        count = deliveries_query.filter(date=day).count()
+        daily_deliveries.append({
+            'date': day,
+            'count': count
+        })
+    
+    context = {
+        'delivery_stats': delivery_stats,
+        'class_averages': class_averages,
+        'student_performance': student_performance[:20],  # Top 20
+        'teacher_activity': teacher_activity,
+        'grade_distribution': grade_distribution,
+        'daily_deliveries': daily_deliveries,
+        'date_from': date_from,
+        'date_to': date_to,
+        'total_graded': total_graded,
+    }
+    
+    return render(request, 'apptask/observer/reports.html', context)
+
+@login_required
+@user_passes_test(observer_required)
+def observer_academic_overview(request):
+    """Vista académica detallada para observadores"""
+    # Todas las clases con estadísticas completas
+    classes_data = []
+    for school_class in SchoolClass.objects.all():
+        tasks = school_class.tasks.all()
+        students = school_class.student_list.all()
+        deliveries = Delivery.objects.filter(task__school_class=school_class)
+        
+        # Calcular estadísticas
+        total_possible_deliveries = tasks.count() * students.count()
+        actual_deliveries = deliveries.count()
+        graded_deliveries = deliveries.exclude(feedback='').count()
+        
+        avg_grade = deliveries.filter(
+            grade__isnull=False
+        ).aggregate(average=Avg('grade'))['average']
+        
+        completion_rate = 0
+        if total_possible_deliveries > 0:
+            completion_rate = (actual_deliveries / total_possible_deliveries) * 100
+        
+        classes_data.append({
+            'class': school_class,
+            'teacher': school_class.teacher,
+            'tasks_count': tasks.count(),
+            'students_count': students.count(),
+            'total_deliveries': actual_deliveries,
+            'graded_deliveries': graded_deliveries,
+            'pending_deliveries': actual_deliveries - graded_deliveries,
+            'avg_grade': round(avg_grade, 2) if avg_grade else 0,
+            'completion_rate': round(completion_rate, 1),
+            'total_possible': total_possible_deliveries,
+        })
+    
+    # Estadísticas globales
+    global_stats = {
+        'total_classes': SchoolClass.objects.count(),
+        'total_students': User.objects.filter(role='student').count(),
+        'total_teachers': User.objects.filter(role='teacher').count(),
+        'total_tasks': Task.objects.count(),
+        'total_deliveries': Delivery.objects.count(),
+        'global_avg': Delivery.objects.filter(
+            grade__isnull=False
+        ).aggregate(avg=Avg('grade'))['avg'] or 0,
+    }
+    
+    context = {
+        'classes_data': classes_data,
+        'global_stats': global_stats,
+    }
+    
+    return render(request, 'apptask/observer/academic_overview.html', context)
+
+@login_required
+@user_passes_test(observer_required)
+def observer_export_report(request):
+    """Exportar reportes en formato CSV"""
+    import csv
+    from django.http import HttpResponse
+    from datetime import datetime
+    
+    report_type = request.GET.get('type', 'deliveries')
+    date_from = request.GET.get('date_from')
+    date_to = request.GET.get('date_to')
+    
+    # Crear respuesta HTTP con header CSV
+    response = HttpResponse(content_type='text/csv; charset=utf-8')
+    response['Content-Disposition'] = f'attachment; filename="reporte_{report_type}_{datetime.now().strftime("%Y%m%d_%H%M%S")}.csv"'
+    
+    writer = csv.writer(response)
+    
+    # Filtrar por fechas si se proporcionan
+    deliveries_query = Delivery.objects.all()
+    if date_from:
+        deliveries_query = deliveries_query.filter(date__gte=date_from)
+    if date_to:
+        deliveries_query = deliveries_query.filter(date__lte=date_to)
+    
+    if report_type == 'deliveries':
+        # Reporte de entregas
+        writer.writerow([
+            'Estudiante', 'Email', 'Tarea', 'Clase', 'Docente', 
+            'Fecha Entrega', 'Hora Entrega', 'Calificación', 'Estado', 
+            'Retroalimentación', 'Entrega Tardía'
+        ])
+        
+        for delivery in deliveries_query.select_related(
+            'student', 'task', 'task__school_class', 'task__school_class__teacher'
+        ).order_by('-date'):
+            writer.writerow([
+                delivery.student.display_name or delivery.student.name,
+                delivery.student.email,
+                delivery.task.theme,
+                delivery.task.school_class.identify,
+                delivery.task.school_class.teacher.display_name or delivery.task.school_class.teacher.name,
+                delivery.date.strftime('%Y-%m-%d'),
+                delivery.delivery_time.strftime('%H:%M:%S'),
+                delivery.grade if delivery.grade else 'Sin calificar',
+                'Calificada' if delivery.feedback else 'Pendiente',
+                delivery.feedback[:100] if delivery.feedback else '',  # Limitar texto
+                'Sí' if delivery.is_late else 'No'
+            ])
+    
+    elif report_type == 'students':
+        # Reporte de estudiantes
+        writer.writerow([
+            'Estudiante', 'Email', 'Clases Inscritas', 'Entregas Realizadas', 
+            'Entregas Calificadas', 'Promedio General', 'Entregas A Tiempo', 
+            'Entregas Tardías', 'Porcentaje Completado'
+        ])
+        
+        for student in User.objects.filter(role='student').order_by('first_name'):
+            student_deliveries = deliveries_query.filter(student=student)
+            graded_deliveries = student_deliveries.exclude(feedback='')
+            
+            avg_grade = graded_deliveries.aggregate(
+                avg=Avg('grade')
+            )['avg'] or 0
+            
+            # Calcular tareas asignadas
+            assigned_tasks = Task.objects.filter(
+                school_class__student_list=student
+            ).count()
+            
+            completion_rate = 0
+            if assigned_tasks > 0:
+                completion_rate = (student_deliveries.count() * 100) / assigned_tasks
+            
+            writer.writerow([
+                student.display_name or student.name,
+                student.email,
+                student.classes.count(),
+                student_deliveries.count(),
+                graded_deliveries.count(),
+                round(avg_grade, 2),
+                student_deliveries.filter(
+                    date__lte=models.F('task__delivery_date')
+                ).count(),
+                student_deliveries.filter(
+                    date__gt=models.F('task__delivery_date')
+                ).count(),
+                round(completion_rate, 1)
+            ])
+    
+    elif report_type == 'classes':
+        # Reporte de clases
+        writer.writerow([
+            'Clase', 'Curso', 'Docente', 'Email Docente', 'Estudiantes', 
+            'Tareas Asignadas', 'Total Entregas', 'Entregas Calificadas', 
+            'Promedio Clase', 'Porcentaje Completado'
+        ])
+        
+        for school_class in SchoolClass.objects.all().order_by('identify'):
+            class_deliveries = deliveries_query.filter(task__school_class=school_class)
+            graded_deliveries = class_deliveries.exclude(feedback='')
+            
+            avg_grade = graded_deliveries.aggregate(
+                avg=Avg('grade')
+            )['avg'] or 0
+            
+            students_count = school_class.student_list.count()
+            tasks_count = school_class.tasks.count()
+            expected_deliveries = students_count * tasks_count
+            
+            completion_rate = 0
+            if expected_deliveries > 0:
+                completion_rate = (class_deliveries.count() * 100) / expected_deliveries
+            
+            writer.writerow([
+                school_class.identify,
+                school_class.course,
+                school_class.teacher.display_name or school_class.teacher.name,
+                school_class.teacher.email,
+                students_count,
+                tasks_count,
+                class_deliveries.count(),
+                graded_deliveries.count(),
+                round(avg_grade, 2),
+                round(completion_rate, 1)
+            ])
+    
+    elif report_type == 'teachers':
+        # Reporte de docentes
+        writer.writerow([
+            'Docente', 'Email', 'Clases Asignadas', 'Tareas Creadas', 
+            'Entregas Recibidas', 'Entregas Calificadas', 'Entregas Pendientes',
+            'Promedio Calificaciones Otorgadas', 'Porcentaje Revisión'
+        ])
+        
+        for teacher in User.objects.filter(role='teacher').order_by('first_name'):
+            teacher_deliveries = deliveries_query.filter(task__school_class__teacher=teacher)
+            graded_deliveries = teacher_deliveries.exclude(feedback='')
+            
+            avg_grade_given = graded_deliveries.aggregate(
+                avg=Avg('grade')
+            )['avg'] or 0
+            
+            review_rate = 0
+            if teacher_deliveries.count() > 0:
+                review_rate = (graded_deliveries.count() * 100) / teacher_deliveries.count()
+            
+            writer.writerow([
+                teacher.display_name or teacher.name,
+                teacher.email,
+                teacher.taught_classes.count(),
+                Task.objects.filter(school_class__teacher=teacher).count(),
+                teacher_deliveries.count(),
+                graded_deliveries.count(),
+                teacher_deliveries.filter(feedback='').count(),
+                round(avg_grade_given, 2),
+                round(review_rate, 1)
+            ])
+    
+    return response

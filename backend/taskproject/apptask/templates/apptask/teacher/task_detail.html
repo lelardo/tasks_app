@@ -1,0 +1,194 @@
+{% extends 'apptask/base.html' %}
+{% block title %}{{ task.theme }} - Vista Docente{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1>
+        <i class="bi bi-journal-text text-primary"></i> {{ task.theme }}
+    </h1>
+    <div class="btn-group">
+        <a href="{% url 'teacher_task_edit' task.id %}" class="btn btn-warning">
+            <i class="bi bi-pencil"></i> Editar Tarea
+        </a>
+        <a href="{% url 'teacher_task_list' %}" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left"></i> Volver a Mis Tareas
+        </a>
+    </div>
+</div>
+
+<!-- Información de la tarea -->
+<div class="row mb-4">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0">
+                    <i class="bi bi-info-circle"></i> Detalles de la Tarea
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <p><strong>Clase:</strong> {{ task.school_class.identify }} - {{ task.school_class.course }}</p>
+                        <p><strong>Fecha de entrega:</strong> {{ task.delivery_date }} {{ task.delivery_time }}</p>
+                        <p><strong>Creada:</strong> {{ task.created_at|date:"d/m/Y H:i" }}</p>
+                    </div>
+                    <div class="col-md-6">
+                        <p><strong>Estado:</strong> 
+                            {% if task.is_overdue %}
+                                <span class="badge bg-danger">Vencida</span>
+                            {% else %}
+                                <span class="badge bg-success">Activa</span>
+                            {% endif %}
+                        </p>
+                        <p><strong>Total estudiantes:</strong> {{ total_students }}</p>
+                    </div>
+                </div>
+                
+                {% if task.instruction %}
+                    <hr>
+                    <h6>Instrucciones:</h6>
+                    <p>{{ task.instruction|linebreaks }}</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <!-- Estadísticas -->
+        <div class="card">
+            <div class="card-header bg-info text-white">
+                <h5 class="mb-0">
+                    <i class="bi bi-graph-up"></i> Estadísticas de Entregas
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row text-center">
+                    <div class="col-6">
+                        <h3 class="text-success">{{ total_deliveries }}</h3>
+                        <small>Entregadas</small>
+                    </div>
+                    <div class="col-6">
+                        <h3 class="text-warning">{{ students_not_delivered.count }}</h3>
+                        <small>Pendientes</small>
+                    </div>
+                </div>
+                <hr>
+                <div class="row text-center">
+                    <div class="col-6">
+                        <h3 class="text-primary">{{ graded_deliveries }}</h3>
+                        <small>Calificadas</small>
+                    </div>
+                    <div class="col-6">
+                        <h3 class="text-secondary">{{ pending_deliveries }}</h3>
+                        <small>Por calificar</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Lista de entregas -->
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h5 class="mb-0">
+            <i class="bi bi-upload"></i> Entregas de Estudiantes
+        </h5>
+        <span class="badge bg-primary">{{ total_deliveries }} de {{ total_students }}</span>
+    </div>
+    <div class="card-body">
+        {% if deliveries %}
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Estudiante</th>
+                            <th>Fecha de Entrega</th>
+                            <th>Estado</th>
+                            <th>Calificación</th>
+                            <th>Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for delivery in deliveries %}
+                        <tr>
+                            <td>
+                                <i class="bi bi-person-circle text-primary me-2"></i>
+                                {{ delivery.student.display_name }}
+                            </td>
+                            <td>
+                                {{ delivery.date }} {{ delivery.delivery_time }}
+                                {% if delivery.is_late %}
+                                    <br><span class="badge bg-danger">Entrega tardía</span>
+                                {% else %}
+                                    <br><span class="badge bg-success">A tiempo</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if delivery.is_graded %}
+                                    <span class="badge bg-success">
+                                        <i class="bi bi-check-circle"></i> Calificada
+                                    </span>
+                                {% else %}
+                                    <span class="badge bg-warning">
+                                        <i class="bi bi-clock"></i> Pendiente
+                                    </span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if delivery.grade %}
+                                    <strong>{{ delivery.grade|floatformat:2 }}/10</strong>
+                                    <br><small class="text-muted">{{ delivery.grade_status }}</small>
+                                {% else %}
+                                    <span class="text-muted">Sin calificar</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <div class="btn-group btn-group-sm">
+                                    <a href="{{ delivery.file_url }}" target="_blank" 
+                                       class="btn btn-outline-primary" title="Ver archivo">
+                                        <i class="bi bi-eye"></i>
+                                    </a>
+                                    {% if delivery.is_graded %}
+                                        <a href="{% url 'teacher_delivery_grade' delivery.id %}" 
+                                           class="btn btn-outline-warning" title="Editar calificación">
+                                            <i class="bi bi-pencil"></i>
+                                        </a>
+                                    {% else %}
+                                        <a href="{% url 'teacher_delivery_grade' delivery.id %}" 
+                                           class="btn btn-outline-success" title="Calificar">
+                                            <i class="bi bi-check-circle"></i>
+                                        </a>
+                                    {% endif %}
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% else %}
+            <div class="text-center py-4">
+                <i class="bi bi-inbox display-4 text-muted"></i>
+                <h4 class="text-muted mt-3">No hay entregas aún</h4>
+                <p class="text-muted">Los estudiantes aún no han comenzado a entregar esta tarea</p>
+            </div>
+        {% endif %}
+        
+        <!-- Estudiantes que no han entregado -->
+        {% if students_not_delivered %}
+            <hr>
+            <h6><i class="bi bi-exclamation-triangle text-warning"></i> Estudiantes sin entregar ({{ students_not_delivered.count }}):</h6>
+            <div class="row">
+                {% for student in students_not_delivered %}
+                    <div class="col-md-4 mb-2">
+                        <div class="alert alert-warning py-2 mb-0">
+                            <i class="bi bi-person"></i> {{ student.display_name }}
+                        </div>
+                    </div>
+                {% endfor %}
+            </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

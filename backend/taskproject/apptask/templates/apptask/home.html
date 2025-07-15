@@ -1,0 +1,192 @@
+{% extends 'apptask/base.html' %}
+{% block title %}Dashboard{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row">
+        <div class="col-12">
+            <h1 class="mb-4">Sistema de Gestión de Tareas</h1>
+            
+            {% if user.is_authenticated %}
+                <div class="alert alert-success">
+                    <h4>¡Bienvenido!</h4>
+                    <p><strong>Usuario:</strong> {{ user.username }}</p>
+                    <p><strong>Email:</strong> {{ user.email }}</p>
+                    <p><strong>Rol:</strong> {{ user.role|default:'Sin rol definido' }}</p>
+                </div>
+                
+                <div class="card">
+                    <div class="card-header">
+                        <h5>Panel de Control</h5>
+                    </div>
+                    <div class="card-body">
+                        {% if user.role == 'admin' %}
+                            <h6><i class="bi bi-shield-check text-danger"></i> Panel de Administrador</h6>
+                            <p>Tienes permisos de administrador en el sistema.</p>
+                            
+                            <!-- Funcionalidades del Admin que SÍ funcionan -->
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="card mb-3">
+                                        <div class="card-body">
+                                            <h5 class="card-title">
+                                                <i class="bi bi-people text-primary"></i> Gestión de Usuarios
+                                            </h5>
+                                            <p class="card-text">Crear, editar y gestionar usuarios del sistema.</p>
+                                            <a href="{% url 'admin_user_list' %}" class="btn btn-primary">
+                                                <i class="bi bi-list"></i> Ver Usuarios
+                                            </a>
+                                            <a href="{% url 'admin_user_create' %}" class="btn btn-success">
+                                                <i class="bi bi-plus-circle"></i> Crear Usuario
+                                            </a>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="card mb-3">
+                                        <div class="card-body">
+                                            <h5 class="card-title">
+                                                <i class="bi bi-book text-success"></i> Gestión de Clases
+                                            </h5>
+                                            <p class="card-text">Crear y administrar clases del sistema.</p>
+                                            <a href="{% url 'admin_class_list' %}" class="btn btn-primary">
+                                                <i class="bi bi-list"></i> Ver Clases
+                                            </a>
+                                            <a href="{% url 'admin_class_create' %}" class="btn btn-success">
+                                                <i class="bi bi-plus-circle"></i> Crear Clase
+                                            </a>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="mt-3">
+                                <a href="{% url 'admin_dashboard' %}" class="btn btn-danger btn-lg">
+                                    <i class="bi bi-speedometer2"></i> Panel Completo de Administración
+                                </a>
+                            </div>
+                        
+                        {% elif user.role == 'teacher' %}
+                            <h6><i class="bi bi-person-badge text-success"></i> Panel de Docente</h6>
+                            <p>Puedes crear tareas y calificar entregas.</p>
+                            
+                            <!-- Funcionalidades del Docente en desarrollo -->
+                            <div class="row">
+                                <div class="col-md-4">
+                                    <div class="card text-center">
+                                        <div class="card-body">
+                                            <i class="bi bi-plus-circle fs-1 text-success"></i>
+                                            <h5 class="card-title">Crear Tareas</h5>
+                                            <p class="card-text">Asignar nuevas tareas a tus estudiantes.</p>
+                                            <button class="btn btn-success" onclick="alert('🔧 Crear tareas - En desarrollo\n\nEsta funcionalidad estará disponible pronto.')">
+                                                Crear Tarea
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="card text-center">
+                                        <div class="card-body">
+                                            <i class="bi bi-list-task fs-1 text-primary"></i>
+                                            <h5 class="card-title">Mis Tareas</h5>
+                                            <p class="card-text">Ver y gestionar todas tus tareas.</p>
+                                            <button class="btn btn-primary" onclick="alert('🔧 Gestión de tareas - En desarrollo\n\nPodrás ver todas tus tareas asignadas.')">
+                                                Ver Tareas
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="card text-center">
+                                        <div class="card-body">
+                                            <i class="bi bi-check-circle fs-1 text-warning"></i>
+                                            <h5 class="card-title">Calificar</h5>
+                                            <p class="card-text">Revisar y calificar entregas de estudiantes.</p>
+                                            <button class="btn btn-warning" onclick="alert('🔧 Sistema de calificaciones - En desarrollo\n\nPodrás calificar las entregas de tus estudiantes.')">
+                                                Calificar
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="alert alert-info mt-3">
+                                <h6><i class="bi bi-info-circle"></i> Próximas funcionalidades:</h6>
+                                <ul class="mb-0">
+                                    <li>✅ Dashboard completo para docentes</li>
+                                    <li>🔧 Creación y edición de tareas</li>
+                                    <li>🔧 Sistema de calificaciones</li>
+                                    <li>🔧 Gestión de entregas</li>
+                                    <li>🔧 Reportes y estadísticas</li>
+                                </ul>
+                            </div>
+                        
+                        {% elif user.role == 'student' %}
+                            <h6><i class="bi bi-mortarboard text-info"></i> Panel de Estudiante</h6>
+                            <p>Puedes ver tareas y realizar entregas.</p>
+                            
+                            <!-- Funcionalidades del Estudiante en desarrollo -->
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="card text-center">
+                                        <div class="card-body">
+                                            <i class="bi bi-list-task fs-1 text-info"></i>
+                                            <h5 class="card-title">Mis Tareas</h5>
+                                            <p class="card-text">Ver tareas asignadas por tus profesores.</p>
+                                            <button class="btn btn-info" onclick="alert('🔧 Ver tareas - En desarrollo\n\nPodrás ver todas las tareas asignadas por tus profesores.')">
+                                                Ver Tareas
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="card text-center">
+                                        <div class="card-body">
+                                            <i class="bi bi-upload fs-1 text-success"></i>
+                                            <h5 class="card-title">Mis Entregas</h5>
+                                            <p class="card-text">Subir y gestionar tus entregas.</p>
+                                            <button class="btn btn-success" onclick="alert('🔧 Subir entregas - En desarrollo\n\nPodrás subir tus trabajos y ver el estado de tus entregas.')">
+                                                Subir Entrega
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="alert alert-info mt-3">
+                                <h6><i class="bi bi-info-circle"></i> Próximas funcionalidades:</h6>
+                                <ul class="mb-0">
+                                    <li>🔧 Ver tareas asignadas</li>
+                                    <li>🔧 Subir entregas</li>
+                                    <li>🔧 Ver calificaciones y retroalimentación</li>
+                                    <li>🔧 Calendario de entregas</li>
+                                    <li>🔧 Historial académico</li>
+                                </ul>
+                            </div>
+                        
+                        {% else %}
+                            <div class="alert alert-warning">
+                                <h6>Usuario sin rol definido</h6>
+                                <p>Contacta con el administrador para asignar un rol.</p>
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+                
+                <div class="mt-3">
+                    <a href="{% url 'logout' %}" class="btn btn-outline-secondary">
+                        <i class="bi bi-box-arrow-right"></i> Cerrar Sesión
+                    </a>
+                </div>
+                
+            {% else %}
+                <div class="alert alert-info">
+                    <h4>Acceso Requerido</h4>
+                    <p>Debes iniciar sesión para acceder al sistema.</p>
+                    <a href="{% url 'login' %}" class="btn btn-primary">Iniciar Sesión</a>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

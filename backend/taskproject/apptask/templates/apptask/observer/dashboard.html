@@ -1,0 +1,250 @@
+{% extends 'apptask/base.html' %}
+{% block title %}Dashboard Observador - Sistema de Tareas{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h1 class="display-4">
+                <i class="bi bi-eye text-info"></i> Panel de Observación Académica
+            </h1>
+            <div class="btn-group">
+                <a href="{% url 'observer_reports' %}" class="btn btn-primary">
+                    <i class="bi bi-file-earmark-bar-graph"></i> Generar Reportes
+                </a>
+                <button class="btn btn-outline-info" onclick="alert('Vista académica en desarrollo')">
+                    <i class="bi bi-mortarboard"></i> Vista Académica
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Estadísticas del Sistema -->
+<div class="row mb-4">
+    <div class="col-md-2">
+        <div class="card bg-primary text-white">
+            <div class="card-body text-center">
+                <h3>{{ total_users }}</h3>
+                <p class="mb-0">Total Usuarios</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-2">
+        <div class="card bg-success text-white">
+            <div class="card-body text-center">
+                <h3>{{ total_students }}</h3>
+                <p class="mb-0">Estudiantes</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-2">
+        <div class="card bg-info text-white">
+            <div class="card-body text-center">
+                <h3>{{ total_teachers }}</h3>
+                <p class="mb-0">Docentes</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-2">
+        <div class="card bg-warning text-dark">
+            <div class="card-body text-center">
+                <h3>{{ total_classes }}</h3>
+                <p class="mb-0">Clases</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-2">
+        <div class="card bg-secondary text-white">
+            <div class="card-body text-center">
+                <h3>{{ total_tasks }}</h3>
+                <p class="mb-0">Tareas</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-2">
+        <div class="card bg-dark text-white">
+            <div class="card-body text-center">
+                <h3>{{ total_deliveries }}</h3>
+                <p class="mb-0">Entregas</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Estadísticas de Entregas -->
+<div class="row mb-4">
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header bg-success text-white">
+                <h5 class="mb-0">
+                    <i class="bi bi-check-circle"></i> Entregas Calificadas
+                </h5>
+            </div>
+            <div class="card-body text-center">
+                <h2>{{ graded_deliveries }}</h2>
+                <p class="text-muted">
+                    {{ graded_percentage|floatformat:1 }}% del total
+                </p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header bg-warning text-dark">
+                <h5 class="mb-0">
+                    <i class="bi bi-clock"></i> Entregas Pendientes
+                </h5>
+            </div>
+            <div class="card-body text-center">
+                <h2>{{ pending_deliveries }}</h2>
+                <p class="text-muted">
+                    {{ pending_percentage|floatformat:1 }}% del total
+                </p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header bg-info text-white">
+                <h5 class="mb-0">
+                    <i class="bi bi-star"></i> Promedio General
+                </h5>
+            </div>
+            <div class="card-body text-center">
+                <h2>{{ avg_grade|floatformat:2|default:"0.00" }}/10</h2>
+                <p class="text-muted">Calificación promedio</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Actividad Reciente -->
+<div class="row">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="bi bi-journal-text"></i> Tareas Recientes
+                </h5>
+            </div>
+            <div class="card-body">
+                {% if recent_tasks %}
+                    {% for task in recent_tasks %}
+                        <div class="d-flex justify-content-between align-items-start border-bottom pb-2 mb-2">
+                            <div class="flex-grow-1">
+                                <h6 class="mb-1">{{ task.theme }}</h6>
+                                <small class="text-muted">
+                                    <i class="bi bi-building"></i> {{ task.school_class.identify }}
+                                    | <i class="bi bi-person-badge"></i> {{ task.school_class.teacher.display_name }}
+                                </small>
+                            </div>
+                            <span class="badge bg-primary">
+                                {{ task.delivery_list.count }} entregas
+                            </span>
+                        </div>
+                    {% endfor %}
+                {% else %}
+                    <p class="text-muted text-center">No hay tareas recientes</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="bi bi-upload"></i> Entregas Recientes
+                </h5>
+            </div>
+            <div class="card-body">
+                {% if recent_deliveries %}
+                    {% for delivery in recent_deliveries %}
+                        <div class="d-flex justify-content-between align-items-start border-bottom pb-2 mb-2">
+                            <div class="flex-grow-1">
+                                <h6 class="mb-1">{{ delivery.task.theme }}</h6>
+                                <small class="text-muted">
+                                    <i class="bi bi-person"></i> {{ delivery.student.display_name }}
+                                    | <i class="bi bi-calendar"></i> {{ delivery.date }}
+                                </small>
+                            </div>
+                            {% if delivery.grade %}
+                                <span class="badge bg-success">{{ delivery.grade }}/10</span>
+                            {% else %}
+                                <span class="badge bg-warning">Pendiente</span>
+                            {% endif %}
+                        </div>
+                    {% endfor %}
+                {% else %}
+                    <p class="text-muted text-center">No hay entregas recientes</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Acciones Rápidas -->
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="bi bi-lightning-charge text-warning"></i> Reportes y Análisis
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-3 mb-3">
+                        <div class="d-grid">
+                            <a href="{% url 'observer_reports' %}" class="btn btn-outline-primary btn-lg">
+                                <i class="bi bi-bar-chart fs-3"></i><br>
+                                <span>Reportes Detallados</span>
+                            </a>
+                        </div>
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <div class="d-grid">
+                            <button class="btn btn-outline-success btn-lg" onclick="alert('Vista académica en desarrollo')">
+                                <i class="bi bi-mortarboard fs-3"></i><br>
+                                <span>Vista Académica</span>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <div class="d-grid">
+                            <button class="btn btn-outline-info btn-lg" onclick="alert('Exportar datos en desarrollo')">
+                                <i class="bi bi-download fs-3"></i><br>
+                                <span>Exportar Datos</span>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <div class="d-grid">
+                            <button class="btn btn-outline-secondary btn-lg" onclick="alert('Análisis avanzado próximamente')">
+                                <i class="bi bi-graph-up fs-3"></i><br>
+                                <span>Análisis Avanzado</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Información del Observador -->
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="alert alert-info">
+            <h6><i class="bi bi-info-circle"></i> Información del Rol Observador:</h6>
+            <ul class="mb-0">
+                <li>Acceso de solo lectura a todas las actividades académicas</li>
+                <li>Capacidad para generar reportes estadísticos</li>
+                <li>Visualización de promedios y rendimiento académico</li>
+                <li>Análisis de entregas y calificaciones</li>
+            </ul>
+        </div>
+    </div>
+</div>
+{% endblock %}

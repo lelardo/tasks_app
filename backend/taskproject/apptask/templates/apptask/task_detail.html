@@ -1,0 +1,202 @@
+{% extends 'apptask/base.html' %}
+
+{% block title %}{{ task.theme }} - Sistema de Tareas{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h4 class="mb-0">{{ task.theme }}</h4>
+                    <div class="btn-group">
+                        <a href="{% url 'task_edit' task.id %}" class="btn btn-outline-light btn-sm">
+                            <i class="bi bi-pencil"></i> Editar
+                        </a>
+                        <a href="{% url 'delivery_create' task.id %}" class="btn btn-light btn-sm">
+                            <i class="bi bi-upload"></i> Hacer Entrega
+                        </a>
+                    </div>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="row mb-4">
+                    <div class="col-md-6">
+                        <h6><i class="bi bi-building text-primary"></i> Clase</h6>
+                        <p>{{ task.school_class.identify }} - {{ task.school_class.course }}</p>
+                    </div>
+                    <div class="col-md-6">
+                        <h6><i class="bi bi-person text-primary"></i> Profesor</h6>
+                        <p>{{ task.school_class.teacher.name }}</p>
+                    </div>
+                    <div class="col-md-6">
+                        <h6><i class="bi bi-calendar text-primary"></i> Fecha de Entrega</h6>
+                        <p>{{ task.delivery_date }} a las {{ task.delivery_time }}</p>
+                    </div>
+                    <div class="col-md-6">
+                        <h6><i class="bi bi-clock text-primary"></i> Creada</h6>
+                        <p>{{ task.created_at|date:"d/m/Y H:i" }}</p>
+                    </div>
+                </div>
+                
+                {% if task.instruction %}
+                    <h6><i class="bi bi-list-ul text-primary"></i> Instrucciones</h6>
+                    <div class="bg-light p-3 rounded">
+                        {{ task.instruction|linebreaks }}
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <h6 class="mb-0">
+                    <i class="bi bi-info-circle text-info"></i> Estadísticas
+                </h6>
+            </div>
+            <div class="card-body">
+                <div class="d-flex justify-content-between mb-2">
+                    <span>Total de estudiantes:</span>
+                    <strong>{{ task.school_class.student_list.count }}</strong>
+                </div>
+                <div class="d-flex justify-content-between mb-2">
+                    <span>Entregas realizadas:</span>
+                    <strong>{{ deliveries|length }}</strong>
+                </div>
+                <div class="d-flex justify-content-between mb-2">
+                    <span>Entregas calificadas:</span>
+                    <strong>{{ deliveries|length }}</strong>
+                </div>
+                <hr>
+                <div class="progress">
+                    {% widthratio deliveries|length task.school_class.student_list.count 100 as progress_percentage %}
+                    <div class="progress-bar" role="progressbar" style="width: {{ progress_percentage }}%" aria-valuenow="{{ progress_percentage }}" aria-valuemin="0" aria-valuemax="100">
+                        {{ progress_percentage }}%
+                    </div>
+                </div>
+                <small class="text-muted">Progreso de entregas</small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Entregas -->
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="bi bi-upload text-success"></i> Entregas ({{ deliveries|length }})
+                </h5>
+            </div>
+            <div class="card-body">
+                {% if deliveries %}
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Estudiante</th>
+                                    <th>Fecha y Hora de Entrega</th>
+                                    <th>Archivo</th>
+                                    <th>Calificación</th>
+                                    <th>Estado</th>
+                                    <th>Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for delivery in deliveries %}
+                                    <tr>
+                                        <td>
+                                            <strong>{{ delivery.student.name }}</strong><br>
+                                            <small class="text-muted">{{ delivery.student.email }}</small>
+                                        </td>
+                                        <td>
+                                            {{ delivery.date }} {{ delivery.delivery_time }}<br>
+                                            {% if delivery.is_late %}
+                                                <span class="badge bg-danger">Entrega tardía</span>
+                                            {% else %}
+                                                <span class="badge bg-success">A tiempo</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            <a href="{{ delivery.file_url }}" target="_blank" class="btn btn-sm btn-outline-primary">
+                                                <i class="bi bi-download"></i> Ver archivo
+                                            </a>
+                                        </td>
+                                        <td>
+                                            {% if delivery.grade %}
+                                                <strong>{{ delivery.grade|floatformat:2 }}/10</strong><br>
+                                                <small class="text-muted">{{ delivery.grade_status }}</small>
+                                            {% else %}
+                                                <span class="text-muted">Sin calificar</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            {% if delivery.feedback %}
+                                                <span class="badge bg-success">Calificada</span>
+                                            {% else %}
+                                                <span class="badge bg-warning">Pendiente</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            <div class="btn-group">
+                                                {% if not delivery.feedback %}
+                                                    <a href="{% url 'delivery_grade' delivery.id %}" class="btn btn-sm btn-outline-success">
+                                                        <i class="bi bi-check-circle"></i> Calificar
+                                                    </a>
+                                                {% else %}
+                                                    <button class="btn btn-sm btn-outline-info" data-bs-toggle="collapse" data-bs-target="#feedback-{{ delivery.id }}">
+                                                        <i class="bi bi-eye"></i> Ver feedback
+                                                    </button>
+                                                    <a href="{% url 'delivery_edit_grade' delivery.id %}" class="btn btn-sm btn-outline-warning">
+                                                        <i class="bi bi-pencil"></i> Editar
+                                                    </a>
+                                                {% endif %}
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    {% if delivery.feedback %}
+                                        <tr class="collapse" id="feedback-{{ delivery.id }}">
+                                            <td colspan="6">
+                                                <div class="bg-light p-3 rounded">
+                                                    <h6>Retroalimentación:</h6>
+                                                    <p>{{ delivery.feedback }}</p>
+                                                    {% if delivery.grade %}
+                                                        <h6>Calificación:</h6>
+                                                        <p><strong>{{ delivery.grade|floatformat:2 }}/10</strong> - {{ delivery.grade_status }}</p>
+                                                    {% endif %}
+                                                    {% if delivery.file_corrected_url %}
+                                                        <a href="{{ delivery.file_corrected_url }}" target="_blank" class="btn btn-sm btn-outline-primary">
+                                                            <i class="bi bi-download"></i> Archivo Corregido
+                                                        </a>
+                                                    {% endif %}
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    {% endif %}
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <div class="text-center py-4 text-muted">
+                        <i class="bi bi-inbox fs-1"></i>
+                        <p class="mt-2">No hay entregas para esta tarea aún</p>
+                        <a href="{% url 'delivery_create' task.id %}" class="btn btn-success">
+                            <i class="bi bi-upload"></i> Hacer Primera Entrega
+                        </a>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="mt-3">
+    <a href="{% url 'task_list' %}" class="btn btn-secondary">
+        <i class="bi bi-arrow-left"></i> Volver a Tareas
+    </a>
+</div>
+{% endblock %}
