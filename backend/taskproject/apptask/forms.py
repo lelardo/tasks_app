@@ -13,6 +13,14 @@ class TaskForm(forms.ModelForm):
             'delivery_time': forms.TimeInput(attrs={'class': 'form-control', 'type': 'time'}),
         }
 
+    def __init__(self, user=None, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Restrict school_class queryset to the teacher's assigned classes
+        if user and user.is_authenticated and user.role == 'teacher':
+            self.fields['school_class'].queryset = user.taught_classes.all()
+        else:
+            self.fields['school_class'].queryset = SchoolClass.objects.none()
+
 class DeliveryForm(forms.ModelForm):
     class Meta:
         model = Delivery

@@ -25,16 +25,21 @@ from .serializers import (
     UserProfileSerializer,
     UserListSerializer
 )
+from django.contrib.auth.hashers import make_password
+import secrets
+import string
+from django.core.exceptions import ValidationError
+from apptask.models import SchoolClass
 
-class TaskForm(forms.ModelForm):
-    class Meta:
-        model = Task
-        fields = ['theme', 'instruction', 'school_class', 'delivery_date', 'delivery_time']
-        widgets = {
-            'delivery_date': forms.DateInput(attrs={'type': 'date'}),
-            'delivery_time': forms.TimeInput(attrs={'type': 'time'}),
-            'instruction': forms.Textarea(attrs={'rows': 5}),
-        }
+# class TaskForm(forms.ModelForm):
+#     class Meta:
+#         model = Task
+#         fields = ['theme', 'instruction', 'school_class', 'delivery_date', 'delivery_time']
+#         widgets = {
+#             'delivery_date': forms.DateInput(attrs={'type': 'date'}),
+#             'delivery_time': forms.TimeInput(attrs={'type': 'time'}),
+#             'instruction': forms.Textarea(attrs={'rows': 5}),
+#         }
 
 # === DECORADORES PERSONALIZADOS ===
 def admin_required(user):
@@ -105,6 +110,37 @@ def admin_dashboard(request):
         'recent_classes': recent_classes,
     }
     return render(request, 'apptask/admin/dashboard.html', context)
+
+@login_required
+@user_passes_test(teacher_required)
+def create_task(request):
+    """Crear una nueva tarea (solo docentes)"""
+    if request.method == 'POST':
+        form = TaskForm(user=request.user, data=request.POST)
+        if form.is_valid():
+            try:
+                task = form.save(commit=False)
+                task.created_at = timezone.now()
+                task.save()
+                messages.success(request, 'Tarea creada exitosamente.')
+                return redirect('teacher_task_list')
+            except Exception as e:
+                messages.error(request, f'Error al crear la tarea: {str(e)}')
+        else:
+            messages.error(request, 'Por favor, corrige los errores en el formulario.')
+    else:
+        form = TaskForm(user=request.user)
+    
+    # Check if the teacher has assigned classes for template compatibility
+    assigned_classes = request.user.taught_classes.all()
+    if not assigned_classes:
+        messages.error(request, 'No tienes clases asignadas. Contacta al administrador.')
+    
+    return render(request, 'apptask/task_form.html', {
+        'form': form,
+        'title': 'Crear Nueva Tarea',
+        'assigned_classes': assigned_classes,  # For template compatibility
+    })
 
 @login_required
 @user_passes_test(teacher_required)
@@ -252,26 +288,22 @@ def student_delivery_create(request, task_id):
     
     if request.method == 'POST':
         file_url = request.POST.get('file_url')
-        
         if not file_url:
             messages.error(request, 'Debes proporcionar la URL del archivo.')
-            return render(request, 'apptask/student/delivery_form.html', {
-                'task': task,
-                'title': 'Entregar Tarea'
-            })
+            return render(request, 'apptask/student/delivery_form.html', {'task': task, 'title': 'Entregar Tarea'})
         
         # Crear la entrega
-        delivery = Delivery.objects.create(
+        Delivery.objects.create(
             task=task,
             student=student,
-            revisor=task.school_class.teacher,  # Asignar al profesor de la clase
+            revisor=task.school_class.teacher,
             date=timezone.now().date(),
             delivery_time=timezone.now().time(),
             file_url=file_url
         )
-        
         messages.success(request, f'Tarea "{task.theme}" entregada exitosamente.')
         return redirect('student_task_detail', task_id=task.id)
+    
     
     return render(request, 'apptask/student/delivery_form.html', {
         'task': task,
@@ -308,6 +340,28 @@ def student_delivery_list(request):
     }
     
     return render(request, 'apptask/student/delivery_list.html', context)
+
+@login_required
+@user_passes_test(teacher_required)
+def teacher_delivery_list(request):
+    """Lista de entregas para el docente"""
+    teacher = request.user
+    
+    # Obtener todas las entregas de las tareas asignadas al docente
+    deliveries = Delivery.objects.filter(task__school_class__teacher=teacher).order_by('-date', '-delivery_time')
+    
+    # Filtros
+    status_filter = request.GET.get('status')
+    if status_filter == 'pending':
+        deliveries = deliveries.filter(feedback='')
+    elif status_filter == 'graded':
+        deliveries = deliveries.exclude(feedback='')
+    
+    context = {
+        'deliveries': deliveries,
+        'current_status': status_filter,
+    }
+    return render(request, 'apptask/teacher/delivery_list.html', context)
 
 @login_required
 @user_passes_test(teacher_required)
@@ -763,26 +817,31 @@ def admin_download_backup(request, filename):
 @login_required
 @user_passes_test(teacher_required)
 def teacher_task_create(request):
-    """Crear nueva tarea (solo docentes)"""
-    teacher = request.user
-    
+    """Crear una nueva tarea para docentes"""
     if request.method == 'POST':
-        form = TaskForm(request.POST)
-        # Filtrar solo las clases del docente
-        form.fields['school_class'].queryset = teacher.taught_classes.all()
-        
+        form = TaskForm(user=request.user, data=request.POST)
         if form.is_valid():
-            task = form.save()
-            messages.success(request, f'Tarea "{task.theme}" creada exitosamente.')
-            return redirect('teacher_task_detail', task_id=task.id)
+            try:
+                task = form.save(commit=False)
+                task.created_at = timezone.now()
+                task.save()
+                messages.success(request, 'Tarea creada exitosamente.')
+                return redirect('teacher_task_list')
+            except Exception as e:
+                messages.error(request, f'Error al crear la tarea: {str(e)}')
+        else:
+            messages.error(request, 'Por favor, corrige los errores en el formulario.')
     else:
-        form = TaskForm()
-        # Filtrar solo las clases del docente
-        form.fields['school_class'].queryset = teacher.taught_classes.all()
+        form = TaskForm(user=request.user)
+    
+    assigned_classes = request.user.taught_classes.all()
+    if not assigned_classes:
+        messages.error(request, 'No tienes clases asignadas. Contacta al administrador.')
     
     return render(request, 'apptask/teacher/task_form.html', {
         'form': form,
-        'title': 'Crear Nueva Tarea'
+        'title': 'Crear Nueva Tarea',
+        'assigned_classes': assigned_classes,
     })
 
 @login_required
@@ -899,24 +958,26 @@ def task_detail(request, task_id):
     })
 
 @login_required
+@user_passes_test(teacher_required)
 def task_edit(request, task_id):
     """Editar una tarea existente"""
-    task = get_object_or_404(Task, id=task_id)
+    task = get_object_or_404(Task, id=task_id, school_class__teacher=request.user)
     
     if request.method == 'POST':
         form = TaskForm(request.POST, instance=task)
         if form.is_valid():
-            task = form.save()
+            form.save()
             messages.success(request, f'Tarea "{task.theme}" actualizada exitosamente.')
-            return redirect('task_detail', task_id=task.id)
+            return redirect('teacher_task_detail', task_id=task.id)
     else:
         form = TaskForm(instance=task)
     
-    return render(request, 'apptask/task_form.html', {
+    context = {
         'form': form,
-        'title': 'Editar Tarea',
-        'task': task
-    })
+        'task': task,
+        'title': f'Editar Tarea: {task.theme}',
+    }
+    return render(request, 'apptask/teacher/task_form.html', context)
 
 @login_required
 def delivery_create(request, task_id):
@@ -1648,3 +1709,273 @@ def observer_export_report(request):
             ])
     
     return response
+
+def user_forgot_password(request):
+    """Vista para recuperar contraseña usando cédula"""
+    if request.method == 'POST':
+        dni = request.POST.get('dni', '').strip()
+        
+        if not dni:
+            messages.error(request, 'Por favor, ingresa tu número de cédula.')
+            return render(request, 'apptask/auth/forgot_password.html')
+        
+        try:
+            # Buscar usuario por cédula
+            user = User.objects.get(dni=dni)
+            
+            # Generar nueva contraseña temporal
+            new_password = generate_temporary_password()
+            
+            # Actualizar contraseña del usuario
+            user.password = make_password(new_password)
+            user.save()
+            
+            # Aquí podrías enviar email, pero por ahora mostraremos en pantalla
+            messages.success(request, 
+                f'Contraseña restablecida exitosamente. Tu nueva contraseña temporal es: {new_password}')
+            messages.info(request, 
+                'Por favor, cambia tu contraseña temporal después de iniciar sesión.')
+            
+            return redirect('login')
+            
+        except User.DoesNotExist:
+            messages.error(request, 'No se encontró un usuario con esa cédula.')
+            return render(request, 'apptask/auth/forgot_password.html')
+        
+        except Exception as e:
+            messages.error(request, 'Ocurrió un error al procesar tu solicitud. Intenta nuevamente.')
+            return render(request, 'apptask/auth/forgot_password.html')
+    
+    return render(request, 'apptask/auth/forgot_password.html')
+
+def generate_temporary_password():
+    """Genera una contraseña temporal segura"""
+    # Generar contraseña de 8 caracteres con letras y números
+    characters = string.ascii_letters + string.digits
+    password = ''.join(secrets.choice(characters) for _ in range(8))
+    
+    # Asegurar que tenga al menos una mayúscula, una minúscula y un número
+    if not any(c.isupper() for c in password):
+        password = password[:-1] + secrets.choice(string.ascii_uppercase)
+    if not any(c.islower() for c in password):
+        password = password[:-1] + secrets.choice(string.ascii_lowercase)
+    if not any(c.isdigit() for c in password):
+        password = password[:-1] + secrets.choice(string.digits)
+    
+    return password
+
+def user_change_password(request):
+    """Vista para cambiar contraseña (usuarios logueados o recuperación)"""
+    user = request.user
+    # Si viene de recuperación, busca el usuario por sesión
+    if not user.is_authenticated and request.session.get('password_reset_user_id'):
+        try:
+            user = User.objects.get(id=request.session['password_reset_user_id'])
+        except User.DoesNotExist:
+            messages.error(request, 'Usuario no válido para recuperación.')
+            return redirect('login')
+    
+    if request.method == 'POST':
+        new_password = request.POST.get('new_password')
+        confirm_password = request.POST.get('confirm_password')
+        
+        if not new_password or not confirm_password:
+            messages.error(request, 'Por favor completa todos los campos.')
+            return render(request, 'apptask/auth/change_password.html')
+        
+        if new_password != confirm_password:
+            messages.error(request, 'Las contraseñas no coinciden.')
+            return render(request, 'apptask/auth/change_password.html')
+        
+        if len(new_password) < 6:
+            messages.error(request, 'La contraseña debe tener al menos 6 caracteres.')
+            return render(request, 'apptask/auth/change_password.html')
+        
+        user.set_password(new_password)
+        user.save()
+        # Limpia la sesión si venía de recuperación
+        request.session.pop('password_reset_user_id', None)
+        messages.success(request, 'Contraseña cambiada exitosamente. Puedes iniciar sesión.')
+        return redirect('login')
+    
+    return render(request, 'apptask/auth/change_password.html')
+
+def forgot_password(request):
+    """Vista para solicitar recuperación de contraseña"""
+    if request.method == 'POST':
+        cedula = request.POST.get('cedula', '').strip()
+        email = request.POST.get('email', '').strip()
+        
+        if not cedula or not email:
+            messages.error(request, 'Por favor ingresa tu cédula y email.')
+            return render(request, 'apptask/auth/forgot_password.html')
+        
+        try:
+            user = User.objects.get(dni=cedula, email=email)
+            # Autentica al usuario para permitirle cambiar la contraseña
+            request.session['password_reset_user_id'] = user.id
+            return redirect('change_password')
+        except User.DoesNotExist:
+            messages.error(request, 'No se encontró un usuario con esa cédula y email.')
+            return render(request, 'apptask/auth/forgot_password.html')
+    return render(request, 'apptask/auth/forgot_password.html')
+
+def reset_password(request, token):
+    """Vista para restablecer contraseña con token"""
+    try:
+        # Buscar usuario por token
+        user = User.objects.get(password_reset_token=token)
+        
+        # Verificar que el token no haya expirado
+        if not user.is_password_reset_token_valid(token):
+            messages.error(request, 'El token ha expirado o no es válido.')
+            return redirect('forgot_password')
+        
+        if request.method == 'POST':
+            new_password = request.POST.get('new_password')
+            confirm_password = request.POST.get('confirm_password')
+            
+            if not new_password or not confirm_password:
+                messages.error(request, 'Por favor completa todos los campos.')
+                return render(request, 'apptask/auth/reset_password.html', {'token': token})
+            
+            if new_password != confirm_password:
+                messages.error(request, 'Las contraseñas no coinciden.')
+                return render(request, 'apptask/auth/reset_password.html', {'token': token})
+            
+            if len(new_password) < 6:
+                messages.error(request, 'La contraseña debe tener al menos 6 caracteres.')
+                return render(request, 'apptask/auth/reset_password.html', {'token': token})
+            
+            # Cambiar contraseña
+            user.set_password(new_password)
+            user.clear_password_reset_token()
+            
+            messages.success(request, 'Contraseña cambiada exitosamente. Puedes iniciar sesión.')
+            return redirect('login')
+        
+        return render(request, 'apptask/auth/reset_password.html', {'token': token})
+        
+    except User.DoesNotExist:
+        messages.error(request, 'Token inválido.')
+        return redirect('forgot_password')
+
+@login_required
+@user_passes_test(admin_required)
+def admin_user_edit(request, user_id):
+    """Editar un usuario existente (solo admin)"""
+    user = get_object_or_404(User, id=user_id)
+    
+    if request.method == 'POST':
+        email = request.POST.get('email')
+        first_name = request.POST.get('first_name')
+        last_name = request.POST.get('last_name')
+        name = request.POST.get('name')
+        username = request.POST.get('username')
+        role = request.POST.get('role')
+        phone = request.POST.get('phone')
+        dni = request.POST.get('dni')
+        password = request.POST.get('password')
+        class_ids = request.POST.getlist('classes')  # Para permitir edición de clases
+        
+        # Validaciones
+        if User.objects.filter(email=email).exclude(id=user_id).exists():
+            messages.error(request, 'Ya existe otro usuario con este email.')
+            return render(request, 'apptask/admin/user_form.html', {
+                'role_choices': User.ROLE_CHOICES,
+                'form_data': request.POST,
+                'user': user,
+                'title': f'Editar Usuario: {user.email}',
+                'is_edit': True,
+                'assigned_classes': user.taught_classes.all() if user.role == 'teacher' else [],
+                'all_classes': SchoolClass.objects.all()  # Updated to SchoolClass
+            })
+        
+        if not email.endswith('@uni.edu.ec'):
+            messages.error(request, 'El email debe ser del dominio @uni.edu.ec')
+            return render(request, 'apptask/admin/user_form.html', {
+                'role_choices': User.ROLE_CHOICES,
+                'form_data': request.POST,
+                'user': user,
+                'title': f'Editar Usuario: {user.email}',
+                'is_edit': True,
+                'assigned_classes': user.taught_classes.all() if user.role == 'teacher' else [],
+                'all_classes': SchoolClass.objects.all()  # Updated to SchoolClass
+            })
+        
+        try:
+            # Actualizar los campos del usuario
+            user.email = email
+            user.first_name = first_name
+            user.last_name = last_name
+            user.name = name or first_name
+            user.username = username
+            user.role = role
+            user.phone = phone
+            user.dni = dni
+            
+            # Actualizar la contraseña solo si se proporciona
+            if password:
+                if len(password) < 8:
+                    messages.error(request, 'La contraseña debe tener al menos 8 caracteres.')
+                    return render(request, 'apptask/admin/user_form.html', {
+                        'role_choices': User.ROLE_CHOICES,
+                        'form_data': request.POST,
+                        'user': user,
+                        'title': f'Editar Usuario: {user.email}',
+                        'is_edit': True,
+                        'assigned_classes': user.taught_classes.all() if user.role == 'teacher' else [],
+                        'all_classes': SchoolClass.objects.all()  # Updated to SchoolClass
+                    })
+                user.set_password(password)
+            
+            user.save()
+            
+            # Actualizar clases asignadas si es docente y se proporcionaron class_ids
+            if user.role == 'teacher' and class_ids:
+                # Para ForeignKey, actualizamos el campo teacher en las clases seleccionadas
+                SchoolClass.objects.filter(id__in=class_ids).update(teacher=user)
+                # Desasignar clases no seleccionadas
+                SchoolClass.objects.filter(teacher=user).exclude(id__in=class_ids).update(teacher=None)
+            
+            messages.success(request, f'Usuario {user.email} actualizado exitosamente.')
+            return redirect('admin_user_list')
+            
+        except Exception as e:
+            messages.error(request, f'Error al actualizar usuario: {str(e)}')
+            return render(request, 'apptask/admin/user_form.html', {
+                'role_choices': User.ROLE_CHOICES,
+                'form_data': request.POST,
+                'user': user,
+                'title': f'Editar Usuario: {user.email}',
+                'is_edit': True,
+                'assigned_classes': user.taught_classes.all() if user.role == 'teacher' else [],
+                'all_classes': SchoolClass.objects.all()  # Updated to SchoolClass
+            })
+    
+    # Preparar datos para el formulario
+    form_data = {
+        'email': user.email,
+        'first_name': user.first_name,
+        'last_name': user.last_name,
+        'name': user.name,
+        'username': user.username,
+        'role': user.role,
+        'phone': user.phone,
+        'dni': user.dni,
+    }
+    
+    # Obtener las clases asignadas y todas las clases disponibles
+    assigned_classes = user.taught_classes.all() if user.role == 'teacher' else []
+    all_classes = SchoolClass.objects.all()
+    
+    context = {
+        'role_choices': User.ROLE_CHOICES,
+        'form_data': form_data,
+        'user': user,
+        'title': f'Editar Usuario: {user.email}',
+        'is_edit': True,
+        'assigned_classes': assigned_classes,
+        'all_classes': all_classes
+    }
+    return render(request, 'apptask/admin/user_form.html', context)
