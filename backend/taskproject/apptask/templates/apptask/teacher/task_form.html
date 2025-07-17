@@ -11,65 +11,85 @@
                 </h4>
             </div>
             <div class="card-body">
+                {% if messages %}
+                    {% for message in messages %}
+                        <div class="alert alert-{% if message.tags == 'error' %}danger{% else %}{{ message.tags|default:'success' }}{% endif %} alert-dismissible fade show" role="alert">
+                            {{ message }}
+                            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                        </div>
+                    {% endfor %}
+                {% endif %}
                 <form method="post">
                     {% csrf_token %}
                     
                     <div class="mb-3">
-                        <label for="theme" class="form-label">
+                        <label for="id_theme" class="form-label">
                             <i class="bi bi-tag"></i> Tema de la Tarea *
                         </label>
-                        <input type="text" class="form-control" id="theme" name="theme" 
-                               value="{{ form.theme.value|default:'' }}" required
-                               placeholder="Ej: Resolver ejercicios de matemáticas">
+                        {{ form.theme }}
+                        {% if form.theme.errors %}
+                            <div class="text-danger">
+                                {{ form.theme.errors }}
+                            </div>
+                        {% endif %}
                     </div>
 
                     <div class="mb-3">
-                        <label for="instruction" class="form-label">
+                        <label for="id_instruction" class="form-label">
                             <i class="bi bi-text-paragraph"></i> Instrucciones *
                         </label>
-                        <textarea class="form-control" id="instruction" name="instruction" 
-                                  rows="5" required
-                                  placeholder="Describe detalladamente qué deben hacer los estudiantes...">{{ form.instruction.value|default:'' }}</textarea>
+                        {{ form.instruction }}
+                        {% if form.instruction.errors %}
+                            <div class="text-danger">
+                                {{ form.instruction.errors }}
+                            </div>
+                        {% endif %}
                     </div>
 
                     <div class="mb-3">
-                        <label for="school_class" class="form-label">
+                        <label for="id_school_class" class="form-label">
                             <i class="bi bi-building"></i> Clase *
                         </label>
-                        <select class="form-select" id="school_class" name="school_class" required>
-                            <option value="">Selecciona una clase...</option>
-                            {% for class in form.school_class.queryset %}
-                                <option value="{{ class.id }}" 
-                                        {% if form.school_class.value == class.id %}selected{% endif %}>
-                                    {{ class.identify }} - {{ class.course }} ({{ class.student_list.count }} estudiantes)
-                                </option>
-                            {% endfor %}
-                        </select>
-                        {% if not form.school_class.queryset %}
-                            <div class="form-text text-warning">
-                                <i class="bi bi-exclamation-triangle"></i> 
-                                No tienes clases asignadas. Contacta con el administrador.
+                        {{ form.school_class }}
+                        {% if form.school_class.errors %}
+                            <div class="text-danger">
+                                {{ form.school_class.errors }}
                             </div>
+                        {% else %}
+                            {% if not form.school_class.queryset %}
+                                {% comment %} <div class="form-text text-warning">
+                                    <i class="bi bi-exclamation-triangle"></i> 
+                                    No tienes clases asignadas. Contacta con el administrador.
+                                </div> {% endcomment %}
+                            {% endif %}
                         {% endif %}
                     </div>
 
                     <div class="row">
                         <div class="col-md-6">
                             <div class="mb-3">
-                                <label for="delivery_date" class="form-label">
+                                <label for="id_delivery_date" class="form-label">
                                     <i class="bi bi-calendar"></i> Fecha de Entrega *
                                 </label>
-                                <input type="date" class="form-control" id="delivery_date" name="delivery_date" 
-                                       value="{{ form.delivery_date.value|default:'' }}" required>
+                                {{ form.delivery_date }}
+                                {% if form.delivery_date.errors %}
+                                    <div class="text-danger">
+                                        {{ form.delivery_date.errors }}
+                                    </div>
+                                {% endif %}
                             </div>
                         </div>
                         <div class="col-md-6">
                             <div class="mb-3">
-                                <label for="delivery_time" class="form-label">
+                                <label for="id_delivery_time" class="form-label">
                                     <i class="bi bi-clock"></i> Hora de Entrega *
                                 </label>
-                                <input type="time" class="form-control" id="delivery_time" name="delivery_time" 
-                                       value="{{ form.delivery_time.value|default:'23:59' }}" required>
+                                {{ form.delivery_time }}
+                                {% if form.delivery_time.errors %}
+                                    <div class="text-danger">
+                                        {{ form.delivery_time.errors }}
+                                    </div>
+                                {% endif %}
                             </div>
                         </div>
                     </div>
@@ -96,7 +116,7 @@
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     // Establecer fecha mínima como hoy
-    const dateInput = document.getElementById('delivery_date');
+    const dateInput = document.getElementById('id_delivery_date');
     const today = new Date().toISOString().split('T')[0];
     dateInput.min = today;
     

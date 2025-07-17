@@ -181,19 +181,17 @@
                                             data-bs-toggle="modal" data-bs-target="#userModal{{ user.id }}">
                                         <i class="bi bi-eye"></i>
                                     </button>
-                                    {% comment %}
-                                    <a href="{% url 'admin_user_edit' user.id %}" class="btn btn-outline-warning btn-sm">
+                                    <a href="{% url 'admin_user_edit' user_id=user.id %}" class="btn btn-outline-warning btn-sm">
                                         <i class="bi bi-pencil"></i>
                                     </a>
                                     <button type="button" class="btn btn-outline-danger btn-sm" 
-                                        onclick="toggleUserStatus({{ user.id }}, '{{ user.is_active|yesno:"true,false" }}')">
-                                    {% if user.is_active %}
-                                        <i class="bi bi-pause"></i>
-                                    {% else %}
-                                        <i class="bi bi-play"></i>
-                                    {% endif %}
-                                </button>
-                                    {% endcomment %}
+                                            onclick="toggleUserStatus({{ user.id }}, '{{ user.is_active|yesno:'true,false' }}')">
+                                        {% if user.is_active %}
+                                            <i class="bi bi-pause"></i>
+                                        {% else %}
+                                            <i class="bi bi-play"></i>
+                                        {% endif %}
+                                    </button>
                                 </div>
                             </td>
                         </tr>
@@ -371,11 +369,9 @@
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
-                {% comment %}
-                <a href="{% url 'admin_user_edit' user.id %}" class="btn btn-primary">
+                <a href="{% url 'admin_user_edit' user_id=user.id %}" class="btn btn-primary">
                     <i class="bi bi-pencil"></i> Editar
                 </a>
-                {% endcomment %}
             </div>
         </div>
     </div>
