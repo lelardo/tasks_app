@@ -7,7 +7,7 @@
         <i class="bi bi-journal-text text-primary"></i> {{ task.theme }}
     </h1>
     <div class="btn-group">
-        <a href="{% url 'teacher_task_edit' task.id %}" class="btn btn-warning">
+        <a href="{% url 'task_edit' task.id %}" class="btn btn-warning">
             <i class="bi bi-pencil"></i> Editar Tarea
         </a>
         <a href="{% url 'teacher_task_list' %}" class="btn btn-outline-secondary">

@@ -88,22 +88,31 @@ def home(request):
 @login_required
 @user_passes_test(admin_required)
 def admin_dashboard(request):
-    """Dashboard para administradores"""
-    total_users = User.objects.count()
-    total_students = User.objects.filter(role='student').count()
-    total_teachers = User.objects.filter(role='teacher').count()
-    total_admins = User.objects.filter(role='admin').count()
+    """Dashboard para administradores - OPTIMIZADO"""
+    # Usar agregación para obtener todos los contadores en una sola consulta
+    from django.db.models import Count, Q
+    
+    # Estadísticas de usuarios optimizada con agregación
+    user_stats = User.objects.aggregate(
+        total_users=Count('id'),
+        total_students=Count('id', filter=Q(role='student')),
+        total_teachers=Count('id', filter=Q(role='teacher')),
+        total_admins=Count('id', filter=Q(role='admin'))
+    )
+    
+    # Contar clases y tareas
     total_classes = SchoolClass.objects.count()
     total_tasks = Task.objects.count()
     
-    recent_users = User.objects.order_by('-date_joined')[:5]
-    recent_classes = SchoolClass.objects.order_by('-id')[:5]
+    # Obtener datos recientes con select_related para evitar consultas adicionales
+    recent_users = User.objects.select_related().order_by('-date_joined')[:5]
+    recent_classes = SchoolClass.objects.select_related('teacher').order_by('-id')[:5]
     
     context = {
-        'total_users': total_users,
-        'total_students': total_students,
-        'total_teachers': total_teachers,
-        'total_admins': total_admins,
+        'total_users': user_stats['total_users'] or 0,
+        'total_students': user_stats['total_students'] or 0,
+        'total_teachers': user_stats['total_teachers'] or 0,
+        'total_admins': user_stats['total_admins'] or 0,
         'total_classes': total_classes,
         'total_tasks': total_tasks,
         'recent_users': recent_users,
@@ -145,39 +154,53 @@ def create_task(request):
 @login_required
 @user_passes_test(teacher_required)
 def teacher_dashboard(request):
-    """Dashboard principal para docentes"""
+    """Dashboard principal para docentes - OPTIMIZADO"""
     teacher = request.user
     
-    # Obtener las clases del docente
-    my_classes = teacher.taught_classes.all()
+    # Optimizar consultas con select_related y prefetch_related
+    # Obtener las clases del docente con estudiantes precargados
+    my_classes = teacher.taught_classes.prefetch_related('student_list').all()
     
-    # Obtener tareas del docente
-    teacher_tasks = Task.objects.filter(school_class__teacher=teacher).order_by('-created_at')[:5]
+    # Obtener tareas del docente con clases precargadas
+    teacher_tasks = Task.objects.filter(
+        school_class__teacher=teacher
+    ).select_related('school_class').order_by('-created_at')[:5]
     
-    # Obtener entregas para revisar
+    # Obtener entregas para revisar con datos relacionados precargados
     teacher_deliveries = Delivery.objects.filter(
         task__school_class__teacher=teacher
+    ).select_related(
+        'task', 'task__school_class', 'student'
     ).order_by('-date')[:10]
     
-    # Calcular estadísticas
-    total_tasks = Task.objects.filter(school_class__teacher=teacher).count()
-    total_deliveries = Delivery.objects.filter(task__school_class__teacher=teacher).count()
-    pending_deliveries = Delivery.objects.filter(
-        task__school_class__teacher=teacher,
-        feedback=''  # Sin retroalimentación = pendiente
-    ).count()
-    graded_deliveries = Delivery.objects.filter(
+    # Optimizar estadísticas usando una sola consulta por tabla
+    # Usar agregación para evitar múltiples consultas
+    from django.db.models import Count, Q
+    
+    # Estadísticas de tareas
+    task_stats = Task.objects.filter(
+        school_class__teacher=teacher
+    ).aggregate(
+        total_tasks=Count('id')
+    )
+    
+    # Estadísticas de entregas
+    delivery_stats = Delivery.objects.filter(
         task__school_class__teacher=teacher
-    ).exclude(feedback='').count()
+    ).aggregate(
+        total_deliveries=Count('id'),
+        pending_deliveries=Count('id', filter=Q(feedback='')),
+        graded_deliveries=Count('id', filter=~Q(feedback=''))
+    )
     
     context = {
         'my_classes': my_classes,
         'tasks': teacher_tasks,
         'recent_deliveries': teacher_deliveries,
-        'total_tasks': total_tasks,
-        'total_deliveries': total_deliveries,
-        'pending_deliveries': pending_deliveries,
-        'graded_deliveries': graded_deliveries,
+        'total_tasks': task_stats['total_tasks'] or 0,
+        'total_deliveries': delivery_stats['total_deliveries'] or 0,
+        'pending_deliveries': delivery_stats['pending_deliveries'] or 0,
+        'graded_deliveries': delivery_stats['graded_deliveries'] or 0,
     }
     
     # Usar el template específico para docentes
@@ -186,30 +209,42 @@ def teacher_dashboard(request):
 @login_required
 @user_passes_test(student_required)
 def student_dashboard(request):
-    """Dashboard principal para estudiantes"""
+    """Dashboard principal para estudiantes - OPTIMIZADO"""
     student = request.user
     
-    # Obtener las clases en las que está inscrito el estudiante
-    my_classes = student.classes.all()
+    # Obtener las clases en las que está inscrito el estudiante con teachers precargados
+    my_classes = student.classes.select_related('teacher').all()
     
-    # Obtener tareas disponibles para el estudiante
+    # Obtener tareas disponibles para el estudiante con datos relacionados
     available_tasks = Task.objects.filter(
         school_class__student_list=student
-    ).order_by('-created_at')
+    ).select_related('school_class', 'school_class__teacher').order_by('-created_at')
     
-    # Obtener entregas del estudiante
-    my_deliveries = Delivery.objects.filter(student=student).order_by('-date')
+    # Obtener entregas del estudiante con datos relacionados precargados
+    my_deliveries = Delivery.objects.filter(
+        student=student
+    ).select_related('task', 'task__school_class').order_by('-date')
     
-    # Tareas pendientes (que no ha entregado)
-    delivered_task_ids = my_deliveries.values_list('task_id', flat=True)
-    pending_tasks = available_tasks.exclude(id__in=delivered_task_ids)
+    # Tareas pendientes optimizado - usar EXISTS para mejor rendimiento
+    delivered_task_ids = list(my_deliveries.values_list('task_id', flat=True))
+    pending_tasks = available_tasks.exclude(id__in=delivered_task_ids) if delivered_task_ids else available_tasks
     
-    # Estadísticas
+    # Estadísticas optimizadas usando agregación y conteo eficiente
+    from django.db.models import Count, Q
+    
+    # Contar solo una vez cada cosa
     total_classes = my_classes.count()
     total_available_tasks = available_tasks.count()
-    total_deliveries = my_deliveries.count()
+    
+    # Estadísticas de entregas en una sola consulta
+    delivery_stats = my_deliveries.aggregate(
+        total_deliveries=Count('id'),
+        graded_count=Count('id', filter=Q(grade__isnull=False))
+    )
+    
+    total_deliveries = delivery_stats['total_deliveries'] or 0
+    graded_count = delivery_stats['graded_count'] or 0
     pending_count = pending_tasks.count()
-    graded_count = my_deliveries.filter(grade__isnull=False).count()
     
     # Calcular porcentaje de completado (evitar división por cero)
     completion_percentage = 0
@@ -226,7 +261,7 @@ def student_dashboard(request):
         'total_deliveries': total_deliveries,
         'pending_count': pending_count,
         'graded_count': graded_count,
-        'completion_percentage': completion_percentage,  # Agregar este campo
+        'completion_percentage': completion_percentage,
     }
     
     return render(request, 'apptask/student/dashboard.html', context)
@@ -879,19 +914,34 @@ def teacher_task_detail(request, task_id):
 @login_required
 @user_passes_test(teacher_required)
 def teacher_task_list(request):
-    """Lista de tareas del docente"""
+    """Lista de tareas del docente - OPTIMIZADA"""
     teacher = request.user
-    tasks = Task.objects.filter(school_class__teacher=teacher).order_by('-created_at')
+    
+    # Consulta optimizada con select_related
+    tasks = Task.objects.filter(
+        school_class__teacher=teacher
+    ).select_related('school_class').order_by('-created_at')
     
     # Filtros
     class_filter = request.GET.get('class')
     if class_filter:
         tasks = tasks.filter(school_class_id=class_filter)
     
+    # Paginación para mejorar rendimiento
+    from django.core.paginator import Paginator
+    paginator = Paginator(tasks, 10)  # 10 tareas por página
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
+    
+    # Obtener clases con una sola consulta
+    my_classes = teacher.taught_classes.all()
+    
     context = {
-        'tasks': tasks,
-        'my_classes': teacher.taught_classes.all(),
+        'page_obj': page_obj,
+        'tasks': page_obj,  # Para compatibilidad con template
+        'my_classes': my_classes,
         'current_class': class_filter,
+        'is_paginated': paginator.num_pages > 1,
     }
     return render(request, 'apptask/teacher/task_list.html', context)
 
@@ -899,22 +949,34 @@ def teacher_task_list(request):
 @login_required
 @user_passes_test(student_required)
 def student_task_list(request):
-    """Lista de tareas disponibles para el estudiante"""
+    """Lista de tareas disponibles para el estudiante - OPTIMIZADA"""
     student = request.user
     
-    # Obtener todas las tareas de las clases en las que está inscrito
+    # Obtener todas las tareas de las clases en las que está inscrito con datos precargados
     available_tasks = Task.objects.filter(
         school_class__student_list=student
-    ).order_by('-created_at')
+    ).select_related('school_class', 'school_class__teacher').order_by('-created_at')
     
-    # Obtener las entregas del estudiante
-    my_deliveries = Delivery.objects.filter(student=student)
-    my_deliveries_tasks = [delivery.task for delivery in my_deliveries]
+    # Obtener las entregas del estudiante con datos precargados
+    my_deliveries = Delivery.objects.filter(
+        student=student
+    ).select_related('task').prefetch_related('task__school_class')
+    
+    # Crear un set de IDs de tareas entregadas para consulta rápida
+    delivered_task_ids = set(my_deliveries.values_list('task_id', flat=True))
+    
+    # Paginación
+    from django.core.paginator import Paginator
+    paginator = Paginator(available_tasks, 10)  # 10 tareas por página
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
     
     context = {
-        'available_tasks': available_tasks,
+        'page_obj': page_obj,
+        'available_tasks': page_obj,  # Para compatibilidad
         'my_deliveries': my_deliveries,
-        'my_deliveries_tasks': my_deliveries_tasks,
+        'delivered_task_ids': delivered_task_ids,  # Para verificar entregas en template
+        'is_paginated': paginator.num_pages > 1,
     }
     return render(request, 'apptask/student/task_list.html', context)
 
