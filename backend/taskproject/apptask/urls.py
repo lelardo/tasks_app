@@ -39,6 +39,8 @@ urlpatterns = [
     path('student/tasks/<int:task_id>/deliver/', views.student_delivery_create, name='delivery_create'),
     path('student/deliveries/', views.student_delivery_list, name='student_delivery_list'),
     path('student/deliveries/<int:delivery_id>/edit/', views.student_delivery_edit, name='delivery_edit'),
+    path('student/notifications/', views.student_notifications, name='student_notifications'),
+    path('student/notifications/<int:notification_id>/read/', views.mark_notification_read, name='mark_notification_read'),
     # === URLs PARA TAREAS ===
     path('tasks/<int:task_id>/edit/', views.task_edit, name='task_edit'),   
     path('tasks/<int:task_id>/delete/', views.task_delete, name='task_delete'),

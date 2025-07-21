@@ -260,11 +260,19 @@ def student_dashboard(request):
     if total_available_tasks > 0:
         completion_percentage = round((graded_count * 100) / total_available_tasks, 1)
     
+    # Obtener notificaciones no leídas del estudiante
+    from .models import Notification
+    unread_notifications = Notification.objects.filter(
+        student=student,
+        is_read=False
+    ).order_by('-created_at')[:5]  # Últimas 5 notificaciones no leídas
+    
     context = {
         'my_classes': my_classes,
         'available_tasks': available_tasks[:5],  # Últimas 5 tareas
         'pending_tasks': pending_tasks[:5],      # 5 tareas pendientes
         'my_deliveries': my_deliveries[:5],      # Últimas 5 entregas
+        'unread_notifications': unread_notifications,  # Notificaciones no leídas
         'total_classes': total_classes,
         'total_available_tasks': total_available_tasks,
         'total_deliveries': total_deliveries,
@@ -274,6 +282,46 @@ def student_dashboard(request):
     }
     
     return render(request, 'apptask/student/dashboard.html', context)
+
+@login_required
+@user_passes_test(student_required)
+def student_notifications(request):
+    """Vista para mostrar todas las notificaciones del estudiante"""
+    student = request.user
+    from .models import Notification
+    
+    # Obtener todas las notificaciones del estudiante
+    notifications = Notification.objects.filter(
+        student=student
+    ).order_by('-created_at')
+    
+    # Marcar todas como leídas cuando el estudiante las vea
+    notifications.filter(is_read=False).update(is_read=True)
+    
+    context = {
+        'notifications': notifications,
+    }
+    
+    return render(request, 'apptask/student/notifications.html', context)
+
+@login_required
+@user_passes_test(student_required)
+def mark_notification_read(request, notification_id):
+    """Marcar una notificación específica como leída"""
+    student = request.user
+    from .models import Notification
+    
+    try:
+        notification = Notification.objects.get(
+            id=notification_id,
+            student=student
+        )
+        notification.is_read = True
+        notification.save()
+    except Notification.DoesNotExist:
+        pass
+    
+    return redirect('student_notifications')
 
 @login_required
 @user_passes_test(student_required)
@@ -461,7 +509,28 @@ def teacher_delivery_grade(request, delivery_id):
     if request.method == 'POST':
         form = GradeDeliveryForm(request.POST, request.FILES, instance=delivery)
         if form.is_valid():
+            # Verificar si es una modificación de calificación existente
+            was_previously_graded = delivery.grade is not None
+            
             delivery = form.save()
+            
+            # Crear notificación si el switch está marcado
+            send_notification = form.cleaned_data.get('send_notification', False)
+            if send_notification:
+                from .models import Notification
+                
+                if was_previously_graded:
+                    message = f"Tu calificación para '{delivery.task.theme}' ha sido modificada. Nueva calificación: {delivery.grade}/10"
+                else:
+                    message = f"Tu entrega para '{delivery.task.theme}' ha sido calificada. Calificación: {delivery.grade}/10"
+                
+                # Crear la notificación
+                Notification.objects.create(
+                    student=delivery.student,
+                    delivery=delivery,
+                    message=message
+                )
+            
             messages.success(request, f'Entrega de {delivery.student.display_name} calificada exitosamente.')
             return redirect('teacher_task_detail', task_id=delivery.task.id)
     else:

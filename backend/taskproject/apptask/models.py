@@ -321,3 +321,20 @@ class Delivery(models.Model):
         verbose_name = "Entrega"
         verbose_name_plural = "Entregas"
         unique_together = ['task', 'student']
+
+
+class Notification(models.Model):
+    """Modelo simple para notificaciones de estudiantes"""
+    student = models.ForeignKey(User, on_delete=models.CASCADE, related_name='notifications')
+    delivery = models.ForeignKey(Delivery, on_delete=models.CASCADE, related_name='notifications')
+    message = models.CharField(max_length=255)
+    is_read = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = "Notificación"
+        verbose_name_plural = "Notificaciones"
+    
+    def __str__(self):
+        return f"Notificación para {self.student.display_name}: {self.message[:50]}"

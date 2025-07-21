@@ -76,6 +76,42 @@
     </div>
 </div>
 
+<!-- Sección de Notificaciones -->
+{% if unread_notifications %}
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card border-warning">
+            <div class="card-header bg-warning text-dark d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">
+                    <i class="bi bi-bell"></i> Notificaciones
+                </h5>
+                <span class="badge bg-dark">{{ unread_notifications.count }} nuevas</span>
+            </div>
+            <div class="card-body">
+                {% for notification in unread_notifications %}
+                    <div class="alert alert-info alert-dismissible fade show d-flex justify-content-between align-items-center" role="alert">
+                        <div>
+                            <i class="bi bi-info-circle me-2"></i>
+                            <strong>{{ notification.message }}</strong>
+                            <br>
+                            <small class="text-muted">{{ notification.created_at|date:"d/m/Y H:i" }}</small>
+                        </div>
+                        <a href="{% url 'mark_notification_read' notification.id %}" class="btn btn-sm btn-outline-primary">
+                            Marcar como leída
+                        </a>
+                    </div>
+                {% endfor %}
+                <div class="text-center">
+                    <a href="{% url 'student_notifications' %}" class="btn btn-warning">
+                        <i class="bi bi-eye"></i> Ver todas las notificaciones
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
 <div class="row">
     <!-- Mis Clases -->
     <div class="col-md-4">

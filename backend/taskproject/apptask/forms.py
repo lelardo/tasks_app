@@ -93,6 +93,13 @@ class GradeDeliveryForm(forms.ModelForm):
         required=False
     )
     
+    send_notification = forms.BooleanField(
+        label="Enviar notificación al estudiante",
+        help_text="Marcar para notificar al estudiante sobre la calificación",
+        required=False,
+        widget=forms.CheckboxInput(attrs={'class': 'form-check-input'})
+    )
+    
     class Meta:
         model = Delivery
         fields = ['grade', 'feedback', 'file_corrected_url', 'corrected_attachment']

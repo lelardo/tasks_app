@@ -194,6 +194,24 @@
                         </div>
                     {% endif %}
                     
+                    <!-- Campo de notificación -->
+                    <div class="mb-3">
+                        <div class="form-check">
+                            {{ form.send_notification }}
+                            <label class="form-check-label" for="{{ form.send_notification.id_for_label }}">
+                                <i class="bi bi-bell"></i> {{ form.send_notification.label }}
+                            </label>
+                        </div>
+                        <div class="form-text">
+                            {{ form.send_notification.help_text }}
+                        </div>
+                        {% if form.send_notification.errors %}
+                            <div class="text-danger small">
+                                {{ form.send_notification.errors }}
+                            </div>
+                        {% endif %}
+                    </div>
+                    
                     <!-- Botones de acción -->
                     <div class="d-grid gap-2">
                         <button type="submit" class="btn {% if delivery.grade %}btn-warning{% else %}btn-success{% endif %}">
