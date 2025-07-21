@@ -1,3 +1,30 @@
+def student_required(user):
+    """Verifica que el usuario sea estudiante"""
+    return user.is_authenticated and user.role == 'student'
+
+from django.utils.timezone import now
+from django.shortcuts import render, get_object_or_404, redirect
+from django.contrib import messages
+from django.contrib.auth.decorators import login_required, user_passes_test
+
+# ...existing code...
+
+@login_required
+@user_passes_test(student_required)
+def student_task_report(request, task_id):
+    """Genera un reporte sencillo de la tarea para el estudiante"""
+    student = request.user
+    task = get_object_or_404(Task, id=task_id, school_class__student_list=student)
+    try:
+        my_delivery = Delivery.objects.get(task=task, student=student)
+    except Delivery.DoesNotExist:
+        my_delivery = None
+    context = {
+        'task': task,
+        'my_delivery': my_delivery,
+        'report_date': now(),
+    }
+    return render(request, 'apptask/student/task_report.html', context)
 from django.shortcuts import render, get_object_or_404, redirect
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required, user_passes_test
@@ -322,6 +349,292 @@ def mark_notification_read(request, notification_id):
         pass
     
     return redirect('student_notifications')
+
+@login_required
+@user_passes_test(student_required)
+def student_grades(request):
+    """Vista para mostrar todas las calificaciones del estudiante organizadas por clase"""
+    student = request.user
+    from django.db.models import Avg, Count, Q
+    
+    # Obtener todas las clases del estudiante con estadísticas
+    classes_with_grades = []
+    for school_class in student.classes.all():
+        # Obtener todas las tareas de esta clase
+        class_tasks = Task.objects.filter(school_class=school_class)
+        
+        # Obtener entregas calificadas del estudiante en esta clase
+        graded_deliveries = Delivery.objects.filter(
+            student=student,
+            task__school_class=school_class,
+            grade__isnull=False
+        ).select_related('task').order_by('-date')
+        
+        # Calcular estadísticas
+        total_tasks = class_tasks.count()
+        total_graded = graded_deliveries.count()
+        
+        # Calcular promedio
+        avg_grade = graded_deliveries.aggregate(
+            average=Avg('grade')
+        )['average'] or 0
+        
+        # Calcular distribución de notas
+        excellent_count = graded_deliveries.filter(grade__gte=9).count()
+        good_count = graded_deliveries.filter(grade__gte=7, grade__lt=9).count()
+        average_count = graded_deliveries.filter(grade__gte=5, grade__lt=7).count()
+        poor_count = graded_deliveries.filter(grade__lt=5).count()
+        
+        # Calcular porcentaje de completado
+        completion_rate = (total_graded / total_tasks * 100) if total_tasks > 0 else 0
+        
+        classes_with_grades.append({
+            'class': school_class,
+            'total_tasks': total_tasks,
+            'total_graded': total_graded,
+            'avg_grade': round(avg_grade, 2),
+            'completion_rate': round(completion_rate, 1),
+            'graded_deliveries': graded_deliveries[:10],  # Últimas 10 calificaciones
+            'excellent_count': excellent_count,
+            'good_count': good_count,
+            'average_count': average_count,
+            'poor_count': poor_count,
+        })
+    
+    # Estadísticas generales del estudiante
+    total_deliveries = Delivery.objects.filter(student=student, grade__isnull=False)
+    overall_avg = total_deliveries.aggregate(avg=Avg('grade'))['avg'] or 0
+    
+    context = {
+        'classes_with_grades': classes_with_grades,
+        'overall_avg': round(overall_avg, 2),
+        'total_classes': len(classes_with_grades),
+    }
+    
+    return render(request, 'apptask/student/grades.html', context)
+
+@login_required
+@user_passes_test(student_required)
+def student_class_grades(request, class_id):
+    """Vista detallada de calificaciones para una clase específica"""
+    student = request.user
+    
+    # Verificar que el estudiante esté inscrito en esta clase
+    school_class = get_object_or_404(
+        SchoolClass, 
+        id=class_id, 
+        student_list=student
+    )
+    
+    # Obtener todas las tareas de esta clase
+    class_tasks = Task.objects.filter(school_class=school_class).order_by('-created_at')
+    
+    # Obtener entregas del estudiante en esta clase
+    deliveries_dict = {}
+    for delivery in Delivery.objects.filter(student=student, task__school_class=school_class):
+        deliveries_dict[delivery.task.id] = delivery
+    
+    # Crear lista con tareas y sus respectivas entregas
+    tasks_with_deliveries = []
+    for task in class_tasks:
+        delivery = deliveries_dict.get(task.id)
+        tasks_with_deliveries.append({
+            'task': task,
+            'delivery': delivery,
+            'status': 'graded' if delivery and delivery.grade is not None else 
+                     'submitted' if delivery else 'pending'
+        })
+    
+    # Calcular estadísticas de la clase
+    graded_deliveries = [d for d in deliveries_dict.values() if d.grade is not None]
+    
+    if graded_deliveries:
+        grades = [d.grade for d in graded_deliveries]
+        avg_grade = sum(grades) / len(grades)
+        highest_grade = max(grades)
+        lowest_grade = min(grades)
+    else:
+        avg_grade = highest_grade = lowest_grade = 0
+    
+    # Calcular tendencia (últimas 5 calificaciones)
+    recent_grades = sorted(graded_deliveries, key=lambda x: x.date)[-5:]
+    trend = "stable"
+    if len(recent_grades) >= 3:
+        first_half_avg = sum(d.grade for d in recent_grades[:len(recent_grades)//2]) / len(recent_grades[:len(recent_grades)//2])
+        second_half_avg = sum(d.grade for d in recent_grades[len(recent_grades)//2:]) / len(recent_grades[len(recent_grades)//2:])
+        
+        if second_half_avg > first_half_avg + 0.5:
+            trend = "improving"
+        elif second_half_avg < first_half_avg - 0.5:
+            trend = "declining"
+    
+    context = {
+        'school_class': school_class,
+        'tasks_with_deliveries': tasks_with_deliveries,
+        'total_tasks': len(tasks_with_deliveries),
+        'graded_count': len(graded_deliveries),
+        'avg_grade': round(avg_grade, 2),
+        'highest_grade': highest_grade,
+        'lowest_grade': lowest_grade,
+        'completion_rate': round((len(graded_deliveries) / len(tasks_with_deliveries) * 100), 1) if tasks_with_deliveries else 0,
+        'trend': trend,
+        'recent_grades': recent_grades,
+    }
+    
+    return render(request, 'apptask/student/class_grades.html', context)
+
+@login_required
+@user_passes_test(student_required)
+def student_grade_report(request, class_id):
+    """Generar reporte de rendimiento del estudiante en una clase específica"""
+    student = request.user
+    from django.http import HttpResponse
+    from datetime import datetime
+    import json
+    
+    # Verificar que el estudiante esté inscrito en esta clase
+    school_class = get_object_or_404(
+        SchoolClass, 
+        id=class_id, 
+        student_list=student
+    )
+    
+    # Obtener todas las entregas calificadas del estudiante en esta clase
+    graded_deliveries = Delivery.objects.filter(
+        student=student,
+        task__school_class=school_class,
+        grade__isnull=False
+    ).select_related('task').order_by('date')
+    
+    if request.GET.get('format') == 'json':
+        # Retornar datos en JSON para gráficos
+        data = {
+            'class_info': {
+                'name': school_class.identify,
+                'course': school_class.course,
+                'teacher': school_class.teacher.display_name,
+            },
+            'student_info': {
+                'name': student.display_name,
+                'email': student.email,
+            },
+            'grades': [
+                {
+                    'task': delivery.task.theme,
+                    'grade': float(delivery.grade),
+                    'date': delivery.date.strftime('%Y-%m-%d'),
+                    'feedback': delivery.feedback,
+                }
+                for delivery in graded_deliveries
+            ],
+            'statistics': {
+                'total_graded': len(graded_deliveries),
+                'average': round(sum(d.grade for d in graded_deliveries) / len(graded_deliveries), 2) if graded_deliveries else 0,
+                'highest': max(d.grade for d in graded_deliveries) if graded_deliveries else 0,
+                'lowest': min(d.grade for d in graded_deliveries) if graded_deliveries else 0,
+            }
+        }
+        return HttpResponse(json.dumps(data), content_type='application/json')
+    
+    # Generar reporte HTML
+    context = {
+        'student': student,
+        'school_class': school_class,
+        'graded_deliveries': graded_deliveries,
+        'report_date': datetime.now(),
+    }
+    
+    return render(request, 'apptask/student/grade_report.html', context)
+
+@login_required
+@user_passes_test(student_required)
+def student_class_detail(request, class_id):
+    """Vista detallada de una clase específica para estudiantes"""
+    student = request.user
+    
+    # Verificar que el estudiante esté inscrito en esta clase
+    school_class = get_object_or_404(
+        SchoolClass, 
+        id=class_id, 
+        student_list=student
+    )
+    
+    # Obtener todas las tareas de esta clase
+    tasks = Task.objects.filter(school_class=school_class).order_by('-created_at')
+    
+    # Obtener entregas del estudiante para esta clase
+    deliveries = Delivery.objects.filter(
+        student=student,
+        task__school_class=school_class
+    ).select_related('task')
+    
+    # Crear un diccionario para mapear tareas con entregas
+    delivery_map = {delivery.task.id: delivery for delivery in deliveries}
+    
+    # Crear lista combinada de tareas con información de entrega
+    tasks_with_delivery = []
+    for task in tasks:
+        delivery = delivery_map.get(task.id)
+        tasks_with_delivery.append({
+            'task': task,
+            'delivery': delivery,
+            'has_delivered': delivery is not None,
+            'is_graded': delivery and delivery.grade is not None,
+            'is_late': delivery and delivery.is_late if delivery else False,
+        })
+    
+    # Calcular estadísticas de la clase
+    total_tasks = tasks.count()
+    delivered_tasks = deliveries.count()
+    graded_deliveries = deliveries.filter(grade__isnull=False)
+    graded_count = graded_deliveries.count()
+    
+    # Calcular promedio de calificaciones
+    avg_grade = graded_deliveries.aggregate(
+        average=models.Avg('grade')
+    )['average'] or 0
+    
+    # Calcular distribución de notas
+    excellent_count = graded_deliveries.filter(grade__gte=9).count()
+    good_count = graded_deliveries.filter(grade__gte=7, grade__lt=9).count()
+    average_count = graded_deliveries.filter(grade__gte=5, grade__lt=7).count()
+    poor_count = graded_deliveries.filter(grade__lt=5).count()
+    
+    # Tareas pendientes (no entregadas y no vencidas)
+    pending_tasks = []
+    for task in tasks:
+        if task.id not in delivery_map and not task.is_overdue:
+            pending_tasks.append(task)
+    
+    # Tareas próximas a vencer (en los próximos 3 días)
+    upcoming_tasks = []
+    for task in pending_tasks:
+        days_until_due = (task.delivery_date - timezone.now().date()).days
+        if 0 <= days_until_due <= 3:
+            upcoming_tasks.append({
+                'task': task,
+                'days_until_due': days_until_due
+            })
+    
+    context = {
+        'school_class': school_class,
+        'tasks_with_delivery': tasks_with_delivery,
+        'total_tasks': total_tasks,
+        'delivered_tasks': delivered_tasks,
+        'graded_count': graded_count,
+        'avg_grade': round(avg_grade, 2),
+        'completion_rate': round((delivered_tasks / total_tasks * 100) if total_tasks > 0 else 0, 1),
+        'grading_rate': round((graded_count / delivered_tasks * 100) if delivered_tasks > 0 else 0, 1),
+        'pending_tasks': pending_tasks[:5],  # Mostrar solo las 5 más recientes
+        'upcoming_tasks': upcoming_tasks,
+        'excellent_count': excellent_count,
+        'good_count': good_count,
+        'average_count': average_count,
+        'poor_count': poor_count,
+        'graded_deliveries': graded_deliveries.order_by('-date')[:10],  # Últimas 10 calificaciones
+    }
+    
+    return render(request, 'apptask/student/class_detail.html', context)
 
 @login_required
 @user_passes_test(student_required)

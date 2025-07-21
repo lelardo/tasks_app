@@ -1,0 +1,386 @@
+{% extends 'apptask/base.html' %}
+{% block title %}Reporte de Rendimiento - {{ school_class.identify }} - Sistema de Tareas{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Header del Reporte -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body p-5">
+                    <div class="text-center mb-4">
+                        <h1 class="display-5 mb-3">📚 Reporte de Rendimiento Académico</h1>
+                        <h2 class="h4 text-primary">{{ school_class.identify }} - {{ school_class.course }}</h2>
+                        <p class="text-muted">Generado el {{ report_date|date:"d de F de Y" }} a las {{ report_date|time:"H:i" }}</p>
+                    </div>
+                    
+                    <!-- Información del Estudiante y Clase -->
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="card bg-light border-0">
+                                <div class="card-body">
+                                    <h5 class="card-title">
+                                        <i class="bi bi-person-circle text-primary me-2"></i>
+                                        Información del Estudiante
+                                    </h5>
+                                    <table class="table table-borderless mb-0">
+                                        <tr>
+                                            <td class="fw-semibold">Nombre:</td>
+                                            <td>{{ student.display_name }}</td>
+                                        </tr>
+                                        <tr>
+                                            <td class="fw-semibold">Email:</td>
+                                            <td>{{ student.email }}</td>
+                                        </tr>
+                                        <tr>
+                                            <td class="fw-semibold">Cédula:</td>
+                                            <td>{{ student.dni }}</td>
+                                        </tr>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="card bg-light border-0">
+                                <div class="card-body">
+                                    <h5 class="card-title">
+                                        <i class="bi bi-book text-success me-2"></i>
+                                        Información de la Clase
+                                    </h5>
+                                    <table class="table table-borderless mb-0">
+                                        <tr>
+                                            <td class="fw-semibold">Clase:</td>
+                                            <td>{{ school_class.identify }}</td>
+                                        </tr>
+                                        <tr>
+                                            <td class="fw-semibold">Curso:</td>
+                                            <td>{{ school_class.course }}</td>
+                                        </tr>
+                                        <tr>
+                                            <td class="fw-semibold">Docente:</td>
+                                            <td>{{ school_class.teacher.display_name }}</td>
+                                        </tr>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Resumen Estadístico -->
+    {% if graded_deliveries %}
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-primary text-white p-4">
+                    <h4 class="mb-0">
+                        <i class="bi bi-graph-up me-2"></i>
+                        Resumen Estadístico
+                    </h4>
+                </div>
+                <div class="card-body p-4">
+                    <div class="row text-center">
+                        <div class="col-md-3">
+                            <div class="bg-primary bg-opacity-10 rounded-3 p-3 mb-3">
+                                <h3 class="text-primary mb-1">{{ graded_deliveries|length }}</h3>
+                                <small class="text-muted">Tareas Calificadas</small>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="bg-success bg-opacity-10 rounded-3 p-3 mb-3">
+                                {% with avg=graded_deliveries|length %}
+                                {% if avg > 0 %}
+                                    {% with total=0 %}
+                                        {% for delivery in graded_deliveries %}
+                                            {% with total=total|add:delivery.grade %}{% endwith %}
+                                        {% endfor %}
+                                        <h3 class="text-success mb-1">
+                                            {% widthratio total graded_deliveries|length 1 %}
+                                        </h3>
+                                    {% endwith %}
+                                {% else %}
+                                    <h3 class="text-success mb-1">0.00</h3>
+                                {% endif %}
+                                {% endwith %}
+                                <small class="text-muted">Promedio General</small>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="bg-warning bg-opacity-10 rounded-3 p-3 mb-3">
+                                <h3 class="text-warning mb-1">
+                                    {% for delivery in graded_deliveries %}
+                                        {% if forloop.first %}{{ delivery.grade }}{% endif %}
+                                        {% for d2 in graded_deliveries %}
+                                            {% if d2.grade > delivery.grade %}{{ d2.grade }}{% endif %}
+                                        {% endfor %}
+                                    {% endfor %}
+                                </h3>
+                                <small class="text-muted">Calificación Más Alta</small>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="bg-info bg-opacity-10 rounded-3 p-3 mb-3">
+                                <h3 class="text-info mb-1">
+                                    {% for delivery in graded_deliveries %}
+                                        {% if forloop.first %}{{ delivery.grade }}{% endif %}
+                                        {% for d2 in graded_deliveries %}
+                                            {% if d2.grade < delivery.grade %}{{ d2.grade }}{% endif %}
+                                        {% endfor %}
+                                    {% endfor %}
+                                </h3>
+                                <small class="text-muted">Calificación Más Baja</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Historial Detallado de Calificaciones -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-success text-white p-4">
+                    <h4 class="mb-0">
+                        <i class="bi bi-list-check me-2"></i>
+                        Historial Detallado de Calificaciones
+                    </h4>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-striped mb-0">
+                            <thead class="table-dark">
+                                <tr>
+                                    <th class="p-3">#</th>
+                                    <th class="p-3">Tarea</th>
+                                    <th class="p-3">Fecha de Entrega</th>
+                                    <th class="p-3">Calificación</th>
+                                    <th class="p-3">Estado</th>
+                                    <th class="p-3">Retroalimentación</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for delivery in graded_deliveries %}
+                                <tr>
+                                    <td class="p-3">{{ forloop.counter }}</td>
+                                    <td class="p-3">
+                                        <strong>{{ delivery.task.theme }}</strong>
+                                        {% if delivery.task.has_attachment %}
+                                            <br><small class="text-muted">
+                                                <i class="bi bi-paperclip me-1"></i>Con material adjunto
+                                            </small>
+                                        {% endif %}
+                                    </td>
+                                    <td class="p-3">
+                                        {{ delivery.date|date:"d/m/Y" }}<br>
+                                        <small class="text-muted">{{ delivery.delivery_time|time:"H:i" }}</small>
+                                        {% if delivery.is_late %}
+                                            <br><span class="badge bg-warning">Entrega tardía</span>
+                                        {% else %}
+                                            <br><span class="badge bg-success">A tiempo</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="p-3">
+                                        {% if delivery.grade >= 9 %}
+                                            <span class="badge bg-success fs-6 px-3 py-2">{{ delivery.grade }}/10</span>
+                                            <br><small class="text-success">Excelente</small>
+                                        {% elif delivery.grade >= 7 %}
+                                            <span class="badge bg-primary fs-6 px-3 py-2">{{ delivery.grade }}/10</span>
+                                            <br><small class="text-primary">Bueno</small>
+                                        {% elif delivery.grade >= 5 %}
+                                            <span class="badge bg-warning fs-6 px-3 py-2">{{ delivery.grade }}/10</span>
+                                            <br><small class="text-warning">Regular</small>
+                                        {% else %}
+                                            <span class="badge bg-danger fs-6 px-3 py-2">{{ delivery.grade }}/10</span>
+                                            <br><small class="text-danger">Insuficiente</small>
+                                        {% endif %}
+                                    </td>
+                                    <td class="p-3">
+                                        {% if delivery.has_corrected_attachment %}
+                                            <i class="bi bi-check-circle text-success me-1"></i>
+                                            Con archivo corregido
+                                        {% else %}
+                                            <i class="bi bi-circle text-muted me-1"></i>
+                                            Sin archivo corregido
+                                        {% endif %}
+                                    </td>
+                                    <td class="p-3">
+                                        {% if delivery.feedback %}
+                                            <div class="text-truncate" style="max-width: 200px;" title="{{ delivery.feedback }}">
+                                                {{ delivery.feedback }}
+                                            </div>
+                                        {% else %}
+                                            <span class="text-muted">Sin comentarios</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Análisis y Recomendaciones -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-info text-white p-4">
+                    <h4 class="mb-0">
+                        <i class="bi bi-lightbulb me-2"></i>
+                        Análisis y Recomendaciones
+                    </h4>
+                </div>
+                <div class="card-body p-4">
+                    {% with total_grades=graded_deliveries|length %}
+                    {% if total_grades > 0 %}
+                        {% with avg_calc=0 excellent=0 good=0 regular=0 poor=0 %}
+                            {% for delivery in graded_deliveries %}
+                                {% if delivery.grade >= 9 %}
+                                    {% with excellent=excellent|add:1 %}{% endwith %}
+                                {% elif delivery.grade >= 7 %}
+                                    {% with good=good|add:1 %}{% endwith %}
+                                {% elif delivery.grade >= 5 %}
+                                    {% with regular=regular|add:1 %}{% endwith %}
+                                {% else %}
+                                    {% with poor=poor|add:1 %}{% endwith %}
+                                {% endif %}
+                            {% endfor %}
+                            
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <h5>Fortalezas Identificadas:</h5>
+                                    <ul class="list-unstyled">
+                                        {% if excellent > 0 %}
+                                            <li class="mb-2">
+                                                <i class="bi bi-check-circle text-success me-2"></i>
+                                                Tienes {{ excellent }} calificación{{ excellent|pluralize:"es" }} excelente{{ excellent|pluralize:"s" }} (9-10)
+                                            </li>
+                                        {% endif %}
+                                        {% if good > 0 %}
+                                            <li class="mb-2">
+                                                <i class="bi bi-check-circle text-primary me-2"></i>
+                                                Tienes {{ good }} calificación{{ good|pluralize:"es" }} buena{{ good|pluralize:"s" }} (7-8)
+                                            </li>
+                                        {% endif %}
+                                        <li class="mb-2">
+                                            <i class="bi bi-calendar-check text-info me-2"></i>
+                                            Has completado {{ total_grades }} tarea{{ total_grades|pluralize:"s" }} calificada{{ total_grades|pluralize:"s" }}
+                                        </li>
+                                    </ul>
+                                </div>
+                                
+                                <div class="col-md-6">
+                                    <h5>Áreas de Mejora:</h5>
+                                    <ul class="list-unstyled">
+                                        {% if poor > 0 %}
+                                            <li class="mb-2">
+                                                <i class="bi bi-exclamation-triangle text-danger me-2"></i>
+                                                {{ poor }} calificación{{ poor|pluralize:"es" }} necesita{{ poor|pluralize:"n" }} mejora (0-4)
+                                            </li>
+                                        {% endif %}
+                                        {% if regular > 0 %}
+                                            <li class="mb-2">
+                                                <i class="bi bi-arrow-up text-warning me-2"></i>
+                                                {{ regular }} calificación{{ regular|pluralize:"es" }} regular{{ regular|pluralize:"es" }} puede{{ regular|pluralize:"n" }} mejorar (5-6)
+                                            </li>
+                                        {% endif %}
+                                        <li class="mb-2">
+                                            <i class="bi bi-target text-primary me-2"></i>
+                                            Continúa manteniendo la consistencia en tus entregas
+                                        </li>
+                                    </ul>
+                                </div>
+                            </div>
+                        {% endwith %}
+                    {% endif %}
+                    {% endwith %}
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    {% else %}
+    <!-- Sin Calificaciones -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body text-center py-5">
+                    <i class="bi bi-inbox display-1 text-muted mb-4"></i>
+                    <h3 class="text-muted">Sin Calificaciones Disponibles</h3>
+                    <p class="text-muted">No hay calificaciones registradas para esta clase aún.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+    
+    <!-- Pie del Reporte -->
+    <div class="row mt-5">
+        <div class="col-12">
+            <div class="card border-0 bg-light">
+                <div class="card-body text-center p-4">
+                    <p class="text-muted mb-2">
+                        <strong>Sistema de Tareas Académicas</strong>
+                    </p>
+                    <small class="text-muted">
+                        Reporte generado automáticamente el {{ report_date|date:"d/m/Y" }} a las {{ report_date|time:"H:i" }}
+                        <br>
+                        Para consultas, contacta a tu docente: {{ school_class.teacher.email }}
+                    </small>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Botones de Acción -->
+    <div class="row mt-4 mb-5">
+        <div class="col-12 text-center">
+            <button onclick="window.print()" class="btn btn-primary me-2">
+                <i class="bi bi-printer me-2"></i>Imprimir Reporte
+            </button>
+            <a href="{% url 'student_class_grades' school_class.id %}" class="btn btn-outline-secondary">
+                <i class="bi bi-arrow-left me-2"></i>Volver a Calificaciones
+            </a>
+        </div>
+    </div>
+</div>
+
+<style>
+/* Estilos para impresión */
+@media print {
+    .btn, .navbar, .card-footer {
+        display: none !important;
+    }
+    
+    .card {
+        border: 1px solid #dee2e6 !important;
+        box-shadow: none !important;
+    }
+    
+    .bg-primary, .bg-success, .bg-info, .bg-warning {
+        background-color: #f8f9fa !important;
+        color: #000 !important;
+    }
+    
+    .text-white {
+        color: #000 !important;
+    }
+}
+
+/* Estilos generales */
+.badge {
+    font-size: 0.8em;
+}
+
+.table th {
+    font-weight: 600;
+}
+</style>
+{% endblock %}

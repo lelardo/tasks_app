@@ -3,6 +3,7 @@ from rest_framework_simplejwt.views import TokenRefreshView
 from . import views
 
 urlpatterns = [
+    path('student/tasks/<int:task_id>/report/', views.student_task_report, name='student_task_report'),
     # === URLs BÁSICAS ===
     path('login/', views.user_login_page, name='login'),
     path('logout/', views.user_logout_view, name='logout'),
@@ -41,6 +42,10 @@ urlpatterns = [
     path('student/deliveries/<int:delivery_id>/edit/', views.student_delivery_edit, name='delivery_edit'),
     path('student/notifications/', views.student_notifications, name='student_notifications'),
     path('student/notifications/<int:notification_id>/read/', views.mark_notification_read, name='mark_notification_read'),
+    path('student/class/<int:class_id>/', views.student_class_detail, name='student_class_detail'),
+    path('student/grades/', views.student_grades, name='student_grades'),
+    path('student/grades/class/<int:class_id>/', views.student_class_grades, name='student_class_grades'),
+    path('student/grades/class/<int:class_id>/report/', views.student_grade_report, name='student_grade_report'),
     # === URLs PARA TAREAS ===
     path('tasks/<int:task_id>/edit/', views.task_edit, name='task_edit'),   
     path('tasks/<int:task_id>/delete/', views.task_delete, name='task_delete'),

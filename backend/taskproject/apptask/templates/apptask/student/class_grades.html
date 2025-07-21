@@ -1,0 +1,341 @@
+{% extends 'apptask/base.html' %}
+{% block title %}{{ school_class.identify }} - Calificaciones - Sistema de Tareas{% endblock %}
+
+{% block content %}
+<!-- Header Section -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card border-0 shadow-sm bg-gradient-primary text-white">
+            <div class="card-body p-4">
+                <div class="row align-items-center">
+                    <div class="col-md-8">
+                        <h1 class="display-6 mb-2">
+                            <i class="bi bi-graph-up me-2"></i>
+                            {{ school_class.identify }}
+                        </h1>
+                        <p class="lead mb-0 opacity-75">
+                            <i class="bi bi-book me-1"></i> {{ school_class.course }}
+                            <span class="mx-2">•</span>
+                            <i class="bi bi-person-badge me-1"></i> {{ school_class.teacher.display_name }}
+                        </p>
+                    </div>
+                    <div class="col-md-4 text-md-end">
+                        <div class="bg-white bg-opacity-20 rounded-3 p-3 d-inline-block">
+                            <h3 class="mb-1 text-white">{{ avg_grade }}/10</h3>
+                            <small class="opacity-75">Promedio de Clase</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Estadísticas de Rendimiento -->
+<div class="row g-4 mb-4">
+    <div class="col-lg-8">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-white border-0 p-4">
+                <h5 class="card-title mb-0">
+                    <i class="bi bi-bar-chart me-2"></i>
+                    Estadísticas de Rendimiento
+                </h5>
+            </div>
+            <div class="card-body p-4">
+                <div class="row text-center">
+                    <div class="col-md-3">
+                        <div class="border-end">
+                            <h4 class="text-primary mb-1">{{ graded_count }}</h4>
+                            <small class="text-muted">Tareas Calificadas</small>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="border-end">
+                            <h4 class="text-info mb-1">{{ total_tasks }}</h4>
+                            <small class="text-muted">Total de Tareas</small>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="border-end">
+                            <h4 class="text-success mb-1">{{ completion_rate }}%</h4>
+                            <small class="text-muted">Completado</small>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        {% if trend == "improving" %}
+                            <h4 class="text-success mb-1">
+                                <i class="bi bi-trending-up"></i> Mejorando
+                            </h4>
+                        {% elif trend == "declining" %}
+                            <h4 class="text-warning mb-1">
+                                <i class="bi bi-trending-down"></i> Descendente
+                            </h4>
+                        {% else %}
+                            <h4 class="text-info mb-1">
+                                <i class="bi bi-dash"></i> Estable
+                            </h4>
+                        {% endif %}
+                        <small class="text-muted">Tendencia</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-lg-4">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-white border-0 p-4">
+                <h5 class="card-title mb-0">
+                    <i class="bi bi-trophy me-2 text-warning"></i>
+                    Mejores Calificaciones
+                </h5>
+            </div>
+            <div class="card-body p-4 text-center">
+                <div class="mb-3">
+                    <span class="badge bg-success fs-5 px-3 py-2">{{ highest_grade }}/10</span>
+                    <div><small class="text-muted">Calificación Más Alta</small></div>
+                </div>
+                <div>
+                    <span class="badge bg-secondary fs-6 px-3 py-2">{{ lowest_grade }}/10</span>
+                    <div><small class="text-muted">Calificación Más Baja</small></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Acciones -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center">
+            <div>
+                <a href="{% url 'student_grades' %}" class="btn btn-outline-secondary">
+                    <i class="bi bi-arrow-left me-2"></i>Volver a Calificaciones
+                </a>
+            </div>
+            <div>
+                <a href="{% url 'student_grade_report' school_class.id %}" 
+                   class="btn btn-success" target="_blank">
+                    <i class="bi bi-download me-2"></i>Generar Reporte PDF
+                </a>
+                <a href="{% url 'student_grade_report' school_class.id %}?format=json" 
+                   class="btn btn-outline-primary" target="_blank">
+                    <i class="bi bi-graph-up me-2"></i>Datos JSON
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Lista Detallada de Tareas y Calificaciones -->
+<div class="row">
+    <div class="col-12">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-white border-0 p-4">
+                <h5 class="card-title mb-0">
+                    <i class="bi bi-list-task me-2"></i>
+                    Historial de Tareas y Calificaciones
+                </h5>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th class="border-0 px-4 py-3">Tarea</th>
+                                <th class="border-0 py-3">Fecha Límite</th>
+                                <th class="border-0 py-3">Fecha Entrega</th>
+                                <th class="border-0 py-3">Estado</th>
+                                <th class="border-0 py-3">Calificación</th>
+                                <th class="border-0 py-3">Retroalimentación</th>
+                                <th class="border-0 py-3">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for item in tasks_with_deliveries %}
+                            <tr>
+                                <td class="px-4 py-3">
+                                    <div>
+                                        <h6 class="mb-1">{{ item.task.theme }}</h6>
+                                        {% if item.task.has_attachment %}
+                                            <small class="text-muted">
+                                                <i class="bi bi-paperclip me-1"></i>Con archivo adjunto
+                                            </small>
+                                        {% endif %}
+                                    </div>
+                                </td>
+                                <td class="py-3">
+                                    <div>
+                                        <small class="fw-semibold">{{ item.task.delivery_date|date:"d/m/Y" }}</small>
+                                        <div><small class="text-muted">{{ item.task.delivery_time|time:"H:i" }}</small></div>
+                                    </div>
+                                </td>
+                                <td class="py-3">
+                                    {% if item.delivery %}
+                                        <div>
+                                            <small class="fw-semibold">{{ item.delivery.date|date:"d/m/Y" }}</small>
+                                            <div><small class="text-muted">{{ item.delivery.delivery_time|time:"H:i" }}</small></div>
+                                        </div>
+                                        {% if item.delivery.is_late %}
+                                            <span class="badge bg-warning mt-1">Tardía</span>
+                                        {% else %}
+                                            <span class="badge bg-success mt-1">A tiempo</span>
+                                        {% endif %}
+                                    {% else %}
+                                        <span class="text-muted">No entregada</span>
+                                    {% endif %}
+                                </td>
+                                <td class="py-3">
+                                    {% if item.status == "graded" %}
+                                        <span class="badge bg-success">
+                                            <i class="bi bi-check-circle me-1"></i>Calificada
+                                        </span>
+                                    {% elif item.status == "submitted" %}
+                                        <span class="badge bg-warning">
+                                            <i class="bi bi-clock me-1"></i>Entregada
+                                        </span>
+                                    {% else %}
+                                        <span class="badge bg-secondary">
+                                            <i class="bi bi-x-circle me-1"></i>Pendiente
+                                        </span>
+                                    {% endif %}
+                                </td>
+                                <td class="py-3">
+                                    {% if item.delivery and item.delivery.grade %}
+                                        {% if item.delivery.grade >= 9 %}
+                                            <span class="badge bg-success fs-6">{{ item.delivery.grade }}/10</span>
+                                        {% elif item.delivery.grade >= 7 %}
+                                            <span class="badge bg-primary fs-6">{{ item.delivery.grade }}/10</span>
+                                        {% elif item.delivery.grade >= 5 %}
+                                            <span class="badge bg-warning fs-6">{{ item.delivery.grade }}/10</span>
+                                        {% else %}
+                                            <span class="badge bg-danger fs-6">{{ item.delivery.grade }}/10</span>
+                                        {% endif %}
+                                    {% else %}
+                                        <span class="text-muted">Sin calificar</span>
+                                    {% endif %}
+                                </td>
+                                <td class="py-3">
+                                    {% if item.delivery and item.delivery.feedback %}
+                                        <div class="d-flex align-items-center">
+                                            <i class="bi bi-chat-text text-info me-2"></i>
+                                            <small title="{{ item.delivery.feedback }}">
+                                                {{ item.delivery.feedback|truncatechars:30 }}
+                                            </small>
+                                        </div>
+                                    {% else %}
+                                        <span class="text-muted">Sin comentarios</span>
+                                    {% endif %}
+                                </td>
+                                <td class="py-3">
+                                    <a href="{% url 'student_task_detail' item.task.id %}" 
+                                       class="btn btn-sm btn-outline-primary">
+                                        <i class="bi bi-eye"></i>
+                                    </a>
+                                    {% if item.delivery and item.delivery.has_corrected_attachment %}
+                                        <a href="{% url 'download_corrected_attachment' item.delivery.id %}" 
+                                           class="btn btn-sm btn-outline-success ms-1" target="_blank"
+                                           title="Descargar archivo corregido">
+                                            <i class="bi bi-download"></i>
+                                        </a>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="7" class="text-center py-5">
+                                    <i class="bi bi-inbox display-1 text-muted"></i>
+                                    <p class="text-muted mt-3">No hay tareas disponibles en esta clase.</p>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Gráfico de Tendencias (si hay datos suficientes) -->
+{% if recent_grades|length >= 3 %}
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-white border-0 p-4">
+                <h5 class="card-title mb-0">
+                    <i class="bi bi-graph-up me-2"></i>
+                    Tendencia de Calificaciones Recientes
+                </h5>
+            </div>
+            <div class="card-body p-4">
+                <div class="d-flex justify-content-between align-items-end" style="height: 150px;">
+                    {% for grade_delivery in recent_grades %}
+                        <div class="text-center flex-grow-1">
+                            <div class="bg-primary rounded-top mb-2 chart-bar" 
+                                 data-height="{{ grade_delivery.grade }}"
+                                 style="width: 80%; max-height: 100px; min-height: 20px;">
+                            </div>
+                            <div>
+                                <small class="fw-bold">{{ grade_delivery.grade }}</small>
+                                <div><small class="text-muted">{{ grade_delivery.date|date:"d/m" }}</small></div>
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<style>
+/* Gradientes personalizados */
+.bg-gradient-primary {
+    background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);
+}
+
+/* Estilos para las tarjetas */
+.card {
+    transition: all 0.3s ease;
+}
+
+.table-hover tbody tr:hover {
+    background-color: rgba(0, 123, 255, 0.05);
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .border-end {
+        border-right: none !important;
+    }
+    
+    .table-responsive {
+        font-size: 0.9rem;
+    }
+}
+
+/* Badge styling */
+.badge {
+    font-size: 0.75em;
+    font-weight: 500;
+}
+
+/* Chart bars */
+.chart-bar {
+    transition: all 0.3s ease;
+}
+</style>
+
+<script>
+// Configurar alturas de las barras del gráfico
+document.addEventListener('DOMContentLoaded', function() {
+    const chartBars = document.querySelectorAll('.chart-bar');
+    chartBars.forEach(function(bar) {
+        const grade = parseFloat(bar.getAttribute('data-height'));
+        const height = Math.max(20, Math.min(100, (grade / 10) * 100));
+        bar.style.height = height + 'px';
+    });
+});
+</script>
+{% endblock %}

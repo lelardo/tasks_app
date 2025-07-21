@@ -194,6 +194,9 @@
                             <i class="bi bi-pencil"></i> Modificar Entrega
                         </a>
                     {% endif %}
+                    <a href="{% url 'student_task_report' task.id %}" class="btn btn-outline-info btn-sm">
+                        <i class="bi bi-file-earmark-text"></i> Generar reporte de esta tarea
+                    </a>
                     <a href="{% url 'student_task_list' %}" class="btn btn-outline-primary btn-sm">
                         <i class="bi bi-list"></i> Ver todas las tareas
                     </a>
