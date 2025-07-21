@@ -123,15 +123,24 @@ def admin_dashboard(request):
 @login_required
 @user_passes_test(teacher_required)
 def create_task(request):
-    """Crear una nueva tarea (solo docentes)"""
+    """Crear una nueva tarea (solo docentes) - CON SOPORTE PARA ARCHIVOS"""
     if request.method == 'POST':
-        form = TaskForm(user=request.user, data=request.POST)
+        form = TaskForm(user=request.user, data=request.POST, files=request.FILES)
         if form.is_valid():
             try:
                 task = form.save(commit=False)
                 task.created_at = timezone.now()
                 task.save()
-                messages.success(request, 'Tarea creada exitosamente.')
+                
+                # Mensaje de éxito con información del archivo si se adjuntó
+                if task.attachment:
+                    messages.success(
+                        request, 
+                        f'Tarea creada exitosamente con archivo adjunto: {task.attachment_name}'
+                    )
+                else:
+                    messages.success(request, 'Tarea creada exitosamente.')
+                
                 return redirect('teacher_task_list')
             except Exception as e:
                 messages.error(request, f'Error al crear la tarea: {str(e)}')
@@ -145,7 +154,7 @@ def create_task(request):
     if not assigned_classes:
         messages.error(request, 'No tienes clases asignadas. Contacta al administrador.')
     
-    return render(request, 'apptask/task_form.html', {
+    return render(request, 'apptask/teacher/task_form.html', {
         'form': form,
         'title': 'Crear Nueva Tarea',
         'assigned_classes': assigned_classes,  # For template compatibility
@@ -294,10 +303,13 @@ def student_task_detail(request, task_id):
         'total_deliveries': all_deliveries.count(),
         'total_students': task.school_class.student_list.count(),
         'can_deliver': not my_delivery and not task.is_overdue,
+        'can_edit': my_delivery and not task.is_overdue,  # Nueva variable
     }
     
     return render(request, 'apptask/student/task_detail.html', context)
 
+@login_required
+@user_passes_test(student_required)
 @login_required
 @user_passes_test(student_required)
 def student_delivery_create(request, task_id):
@@ -322,27 +334,64 @@ def student_delivery_create(request, task_id):
         return redirect('student_task_detail', task_id=task.id)
     
     if request.method == 'POST':
-        file_url = request.POST.get('file_url')
-        if not file_url:
-            messages.error(request, 'Debes proporcionar la URL del archivo.')
-            return render(request, 'apptask/student/delivery_form.html', {'task': task, 'title': 'Entregar Tarea'})
-        
-        # Crear la entrega
-        Delivery.objects.create(
-            task=task,
-            student=student,
-            revisor=task.school_class.teacher,
-            date=timezone.now().date(),
-            delivery_time=timezone.now().time(),
-            file_url=file_url
-        )
-        messages.success(request, f'Tarea "{task.theme}" entregada exitosamente.')
-        return redirect('student_task_detail', task_id=task.id)
-    
+        form = DeliveryForm(request.POST, request.FILES)
+        if form.is_valid():
+            delivery = form.save(commit=False)
+            delivery.task = task
+            delivery.student = student
+            delivery.revisor = task.school_class.teacher
+            delivery.date = timezone.now().date()
+            delivery.delivery_time = timezone.now().time()
+            delivery.save()
+            
+            messages.success(request, f'Tarea "{task.theme}" entregada exitosamente.')
+            return redirect('student_task_detail', task_id=task.id)
+    else:
+        form = DeliveryForm()
     
     return render(request, 'apptask/student/delivery_form.html', {
         'task': task,
+        'form': form,
         'title': 'Entregar Tarea'
+    })
+
+@login_required
+@user_passes_test(student_required)
+def student_delivery_edit(request, delivery_id):
+    """Editar entrega de un estudiante (solo archivos)"""
+    student = request.user
+    
+    # Verificar que la entrega pertenezca al estudiante
+    delivery = get_object_or_404(
+        Delivery, 
+        id=delivery_id, 
+        student=student
+    )
+    
+    # Verificar que la tarea no esté vencida
+    if delivery.task.is_overdue:
+        messages.error(request, 'No puedes modificar entregas de tareas vencidas.')
+        return redirect('student_task_detail', task_id=delivery.task.id)
+    
+    if request.method == 'POST':
+        form = DeliveryForm(request.POST, request.FILES, instance=delivery)
+        if form.is_valid():
+            # Actualizar fecha y hora de entrega
+            delivery = form.save(commit=False)
+            delivery.date = timezone.now().date()
+            delivery.delivery_time = timezone.now().time()
+            delivery.save()
+            
+            messages.success(request, f'Entrega actualizada exitosamente.')
+            return redirect('student_task_detail', task_id=delivery.task.id)
+    else:
+        form = DeliveryForm(instance=delivery)
+    
+    return render(request, 'apptask/student/delivery_edit.html', {
+        'delivery': delivery,
+        'task': delivery.task,
+        'form': form,
+        'title': 'Modificar Entrega'
     })
 
 @login_required
@@ -410,7 +459,7 @@ def teacher_delivery_grade(request, delivery_id):
     )
     
     if request.method == 'POST':
-        form = GradeDeliveryForm(request.POST, instance=delivery)
+        form = GradeDeliveryForm(request.POST, request.FILES, instance=delivery)
         if form.is_valid():
             delivery = form.save()
             messages.success(request, f'Entrega de {delivery.student.display_name} calificada exitosamente.')
@@ -418,7 +467,7 @@ def teacher_delivery_grade(request, delivery_id):
     else:
         form = GradeDeliveryForm(instance=delivery)
     
-    return render(request, 'apptask/teacher/grade_form.html', {
+    return render(request, 'apptask/teacher/grade_delivery.html', {
         'form': form,
         'delivery': delivery,
         'title': 'Calificar Entrega',
@@ -852,15 +901,24 @@ def admin_download_backup(request, filename):
 @login_required
 @user_passes_test(teacher_required)
 def teacher_task_create(request):
-    """Crear una nueva tarea para docentes"""
+    """Crear una nueva tarea para docentes - CON SOPORTE PARA ARCHIVOS"""
     if request.method == 'POST':
-        form = TaskForm(user=request.user, data=request.POST)
+        form = TaskForm(user=request.user, data=request.POST, files=request.FILES)
         if form.is_valid():
             try:
                 task = form.save(commit=False)
                 task.created_at = timezone.now()
                 task.save()
-                messages.success(request, 'Tarea creada exitosamente.')
+                
+                # Mensaje de éxito con información del archivo si se adjuntó
+                if task.attachment:
+                    messages.success(
+                        request, 
+                        f'Tarea creada exitosamente con archivo adjunto: {task.attachment_name}'
+                    )
+                else:
+                    messages.success(request, 'Tarea creada exitosamente.')
+                
                 return redirect('teacher_task_list')
             except Exception as e:
                 messages.error(request, f'Error al crear la tarea: {str(e)}')
@@ -1022,17 +1080,28 @@ def task_detail(request, task_id):
 @login_required
 @user_passes_test(teacher_required)
 def task_edit(request, task_id):
-    """Editar una tarea existente"""
+    """Editar una tarea existente - CON SOPORTE PARA ARCHIVOS"""
     task = get_object_or_404(Task, id=task_id, school_class__teacher=request.user)
     
     if request.method == 'POST':
-        form = TaskForm(request.POST, instance=task)
+        form = TaskForm(user=request.user, data=request.POST, files=request.FILES, instance=task)
         if form.is_valid():
-            form.save()
-            messages.success(request, f'Tarea "{task.theme}" actualizada exitosamente.')
+            updated_task = form.save()
+            
+            # Mensaje de éxito con información del archivo
+            if updated_task.attachment:
+                messages.success(
+                    request, 
+                    f'Tarea "{task.theme}" actualizada exitosamente con archivo: {updated_task.attachment_name}'
+                )
+            else:
+                messages.success(request, f'Tarea "{task.theme}" actualizada exitosamente.')
+            
             return redirect('teacher_task_detail', task_id=task.id)
+        else:
+            messages.error(request, 'Por favor, corrige los errores en el formulario.')
     else:
-        form = TaskForm(instance=task)
+        form = TaskForm(user=request.user, instance=task)
     
     context = {
         'form': form,
@@ -1042,15 +1111,30 @@ def task_edit(request, task_id):
     return render(request, 'apptask/teacher/task_form.html', context)
 
 @login_required
+@user_passes_test(teacher_required)
+def task_delete(request, task_id):
+    """Eliminar una tarea"""
+    task = get_object_or_404(Task, id=task_id, school_class__teacher=request.user)
+    
+    if request.method == 'POST':
+        task_name = task.theme
+        task.delete()
+        messages.success(request, f'Tarea "{task_name}" eliminada exitosamente.')
+        return redirect('teacher_task_list')
+    
+    return redirect('teacher_task_detail', task_id=task.id)
+
+@login_required
 def delivery_create(request, task_id):
     """Crear una nueva entrega para una tarea"""
     task = get_object_or_404(Task, id=task_id)
     
     if request.method == 'POST':
-        form = DeliveryForm(request.POST, task=task)
+        form = DeliveryForm(request.POST, request.FILES)
         if form.is_valid():
             delivery = form.save(commit=False)
             delivery.task = task
+            delivery.student = request.user
             delivery.date = timezone.now().date()
             delivery.delivery_time = timezone.now().time()
             # Por ahora asignamos un profesor por defecto como revisor
@@ -1059,7 +1143,7 @@ def delivery_create(request, task_id):
             messages.success(request, 'Entrega realizada exitosamente.')
             return redirect('task_detail', task_id=task.id)
     else:
-        form = DeliveryForm(task=task)
+        form = DeliveryForm()
     
     return render(request, 'apptask/delivery_form.html', {
         'form': form,
@@ -2030,14 +2114,207 @@ def admin_user_edit(request, user_id):
     # Obtener las clases asignadas y todas las clases disponibles
     assigned_classes = user.taught_classes.all() if user.role == 'teacher' else []
     all_classes = SchoolClass.objects.all()
+
+# === VISTA PARA DESCARGAR ARCHIVOS DE TAREAS ===
+@login_required
+def download_task_attachment(request, task_id):
+    """Permite descargar el archivo adjunto de una tarea"""
+    task = get_object_or_404(Task, id=task_id)
     
-    context = {
-        'role_choices': User.ROLE_CHOICES,
-        'form_data': form_data,
-        'user': user,
-        'title': f'Editar Usuario: {user.email}',
-        'is_edit': True,
-        'assigned_classes': assigned_classes,
-        'all_classes': all_classes
-    }
-    return render(request, 'apptask/admin/user_form.html', context)
+    # Verificar permisos: solo estudiantes de la clase o el docente pueden descargar
+    user = request.user
+    has_permission = False
+    
+    if user.role == 'teacher' and task.school_class.teacher == user:
+        has_permission = True
+    elif user.role == 'student' and user in task.school_class.student_list.all():
+        has_permission = True
+    elif user.role == 'admin':
+        has_permission = True
+    
+    if not has_permission:
+        from django.http import HttpResponseForbidden
+        return HttpResponseForbidden("No tienes permisos para descargar este archivo.")
+    
+    # Verificar que la tarea tiene archivo adjunto
+    if not task.attachment:
+        from django.http import Http404
+        raise Http404("Esta tarea no tiene archivo adjunto.")
+    
+    # Servir el archivo
+    import os
+    from django.http import HttpResponse, Http404
+    from django.conf import settings
+    
+    try:
+        file_path = task.attachment.path
+        
+        if not os.path.exists(file_path):
+            raise Http404("El archivo no se encuentra en el servidor.")
+        
+        # Obtener el tipo de contenido
+        import mimetypes
+        content_type, _ = mimetypes.guess_type(file_path)
+        
+        # Crear la respuesta HTTP
+        with open(file_path, 'rb') as f:
+            response = HttpResponse(f.read(), content_type=content_type)
+            response['Content-Disposition'] = f'attachment; filename="{task.attachment_name}"'
+            response['Content-Length'] = os.path.getsize(file_path)
+            return response
+            
+    except Exception as e:
+        from django.http import Http404
+        raise Http404(f"Error al descargar el archivo: {str(e)}")
+
+@login_required
+def download_delivery_attachment(request, delivery_id):
+    """Permite descargar el archivo adjunto de una entrega"""
+    delivery = get_object_or_404(Delivery, id=delivery_id)
+    
+    # Verificar permisos: solo el estudiante que entregó, el docente de la clase o admin pueden descargar
+    user = request.user
+    has_permission = False
+    
+    if user.role == 'teacher' and delivery.task.school_class.teacher == user:
+        has_permission = True
+    elif user.role == 'student' and delivery.student == user:
+        has_permission = True
+    elif user.role == 'admin':
+        has_permission = True
+    
+    if not has_permission:
+        from django.http import HttpResponseForbidden
+        return HttpResponseForbidden("No tienes permisos para descargar este archivo.")
+    
+    # Verificar que la entrega tiene archivo adjunto
+    if not delivery.attachment:
+        from django.http import Http404
+        raise Http404("Esta entrega no tiene archivo adjunto.")
+    
+    # Servir el archivo
+    import os
+    from django.http import HttpResponse, Http404
+    from django.conf import settings
+    
+    try:
+        file_path = delivery.attachment.path
+        
+        if not os.path.exists(file_path):
+            raise Http404("El archivo no se encuentra en el servidor.")
+        
+        # Obtener el tipo de contenido
+        import mimetypes
+        content_type, _ = mimetypes.guess_type(file_path)
+        
+        # Crear la respuesta HTTP
+        with open(file_path, 'rb') as f:
+            response = HttpResponse(f.read(), content_type=content_type)
+            response['Content-Disposition'] = f'attachment; filename="{delivery.attachment_name}"'
+            response['Content-Length'] = os.path.getsize(file_path)
+            return response
+            
+    except Exception as e:
+        from django.http import Http404
+        raise Http404(f"Error al descargar el archivo: {str(e)}")
+
+@login_required
+
+def download_corrected_attachment(request, delivery_id):
+
+    """Permite descargar el archivo corregido de una entrega"""
+
+    delivery = get_object_or_404(Delivery, id=delivery_id)
+
+    
+
+    # Verificar permisos: solo el estudiante que entreg��, el docente de la clase o admin pueden descargar
+
+    user = request.user
+
+    has_permission = False
+
+    
+
+    if user.role == 'teacher' and delivery.task.school_class.teacher == user:
+
+        has_permission = True
+
+    elif user.role == 'student' and delivery.student == user:
+
+        has_permission = True
+
+    elif user.role == 'admin':
+
+        has_permission = True
+
+    
+
+    if not has_permission:
+
+        from django.http import HttpResponseForbidden
+
+        return HttpResponseForbidden("No tienes permisos para descargar este archivo.")
+
+    
+
+    # Verificar que la entrega tiene archivo corregido
+
+    if not delivery.corrected_attachment:
+
+        from django.http import Http404
+
+        raise Http404("Esta entrega no tiene archivo corregido.")
+
+    
+
+    # Servir el archivo
+
+    import os
+
+    from django.http import HttpResponse, Http404
+
+    from django.conf import settings
+
+    
+
+    try:
+
+        file_path = delivery.corrected_attachment.path
+
+        
+
+        if not os.path.exists(file_path):
+
+            raise Http404("El archivo no se encuentra en el servidor.")
+
+        
+
+        # Obtener el tipo de contenido
+
+        import mimetypes
+
+        content_type, _ = mimetypes.guess_type(file_path)
+
+        
+
+        # Crear la respuesta HTTP
+
+        with open(file_path, 'rb') as f:
+
+            response = HttpResponse(f.read(), content_type=content_type)
+
+            response['Content-Disposition'] = f'attachment; filename="{delivery.corrected_attachment_name}"'
+
+            response['Content-Length'] = os.path.getsize(file_path)
+
+            return response
+
+            
+
+    except Exception as e:
+
+        from django.http import Http404
+
+        raise Http404(f"Error al descargar el archivo: {str(e)}")
+

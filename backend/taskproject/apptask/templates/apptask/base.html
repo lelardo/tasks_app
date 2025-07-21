@@ -40,16 +40,7 @@
                                 </a>
                             </li>
                         {% elif user.role == 'teacher' %}
-                            <li class="nav-item">
-                                <a class="nav-link" href="{% url 'teacher_task_list' %}">
-                                    <i class="bi bi-list-task"></i> Mis Tareas
-                                </a>
-                            </li>
-                            <li class="nav-item">
-                                <a class="nav-link" href="{% url 'teacher_delivery_list' %}">
-                                    <i class="bi bi-upload"></i> Entregas
-                                </a>
-                            </li>
+                            <!-- Opciones de navegación removidas para docentes -->
                         {% elif user.role == 'observer' %}
                             <li class="nav-item">
                                 <a class="nav-link" href="{% url 'observer_reports' %}">
@@ -62,19 +53,7 @@
                                 </a>
                             </li>
                         {% elif user.role == 'student' %}
-                            <li class="nav-item">
-                                <a class="nav-link" href="#" onclick="alert('Función en desarrollo')">
-                                    <i class="bi bi-list-task"></i> Mis Tareas
-                                </a>
-                            </li>
-                            <li class="nav-item">
-                                <a class="nav-link" href="#" onclick="alert('Función en desarrollo')">
-                                    <i class="bi bi-upload"></i> Mis Entregas
-                                </a>
-                            </li>
-                            <li><a class="dropdown-item" href="{% url 'change_password' %}">
-                                <i class="bi bi-shield-lock"></i> Cambiar Contraseña
-                            </a></li>
+                            <!-- Solo mostrar Inicio para estudiantes -->
                         {% endif %}
 
                     </ul>

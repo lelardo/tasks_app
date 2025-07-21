@@ -7,19 +7,26 @@
     <div class="col-md-8">
         <div class="card">
             <div class="card-header bg-primary text-white">
-                <div class="d-flex justify-content-between align-items-center">
-                    <h4 class="mb-0">{{ task.theme }}</h4>
-                    <div class="btn-group">
-                        <a href="{% url 'task_edit' task.id %}" class="btn btn-outline-light btn-sm">
-                            <i class="bi bi-pencil"></i> Editar
-                        </a>
-                        <a href="{% url 'delivery_create' task.id %}" class="btn btn-light btn-sm">
-                            <i class="bi bi-upload"></i> Hacer Entrega
-                        </a>
+                <div class="d-flex flex-column flex-sm-row justify-content-between align-items-start align-items-sm-center gap-2">
+                    <h4 class="mb-0 text-truncate">{{ task.theme }}</h4>
+                    <div class="d-flex gap-2">
+                        {% if can_deliver %}
+                            <a href="{% url 'delivery_create' task.id %}" class="btn btn-light btn-sm">
+                                <i class="bi bi-upload"></i> Hacer Entrega
+                            </a>
+                        {% elif my_delivery %}
+                            <span class="badge bg-success fs-6">
+                                <i class="bi bi-check-circle"></i> Entregada
+                            </span>
+                        {% elif task.is_overdue %}
+                            <span class="badge bg-danger fs-6">
+                                <i class="bi bi-clock"></i> Vencida
+                            </span>
+                        {% endif %}
                     </div>
                 </div>
             </div>
-            <div class="card-body">
+            <div class="card-body overflow-hidden">
                 <div class="row mb-4">
                     <div class="col-md-6">
                         <h6><i class="bi bi-building text-primary"></i> Clase</h6>
@@ -45,6 +52,25 @@
                         {{ task.instruction|linebreaks }}
                     </div>
                 {% endif %}
+                
+                <!-- Mostrar archivo adjunto del profesor si existe -->
+                {% if task.has_attachment %}
+                    <h6 class="mt-4"><i class="bi bi-paperclip text-primary"></i> Material del Profesor</h6>
+                    <div class="bg-light p-3 rounded d-flex align-items-center">
+                        <div class="me-3">
+                            <i class="bi bi-file-earmark-text text-primary" style="font-size: 2rem;"></i>
+                        </div>
+                        <div class="flex-grow-1">
+                            <strong>{{ task.attachment_name }}</strong><br>
+                            <small class="text-muted">Tamaño: {{ task.attachment_size }} MB</small>
+                        </div>
+                        <div>
+                            <a href="{% url 'download_task_attachment' task.id %}" class="btn btn-primary btn-sm">
+                                <i class="bi bi-download"></i> Descargar
+                            </a>
+                        </div>
+                    </div>
+                {% endif %}
             </div>
         </div>
     </div>
@@ -53,150 +79,130 @@
         <div class="card">
             <div class="card-header">
                 <h6 class="mb-0">
-                    <i class="bi bi-info-circle text-info"></i> Estadísticas
+                    <i class="bi bi-person-circle text-info"></i> Mi Estado
                 </h6>
             </div>
             <div class="card-body">
-                <div class="d-flex justify-content-between mb-2">
-                    <span>Total de estudiantes:</span>
-                    <strong>{{ task.school_class.student_list.count }}</strong>
-                </div>
-                <div class="d-flex justify-content-between mb-2">
-                    <span>Entregas realizadas:</span>
-                    <strong>{{ deliveries|length }}</strong>
-                </div>
-                <div class="d-flex justify-content-between mb-2">
-                    <span>Entregas calificadas:</span>
-                    <strong>{{ deliveries|length }}</strong>
-                </div>
-                <hr>
-                <div class="progress">
-                    {% widthratio deliveries|length task.school_class.student_list.count 100 as progress_percentage %}
-                    <div class="progress-bar" role="progressbar" style="width: {{ progress_percentage }}%" aria-valuenow="{{ progress_percentage }}" aria-valuemin="0" aria-valuemax="100">
-                        {{ progress_percentage }}%
+                <!-- Estado de mi entrega -->
+                <div class="p-3 rounded {% if my_delivery %}bg-success-subtle{% elif task.is_overdue %}bg-danger-subtle{% else %}bg-warning-subtle{% endif %}">
+                    <div class="text-center">
+                        {% if my_delivery %}
+                            <i class="bi bi-check-circle text-success" style="font-size: 2rem;"></i>
+                            <h6 class="mt-2 text-success">Entregada</h6>
+                            <small class="text-muted">{{ my_delivery.date }} {{ my_delivery.delivery_time }}</small>
+                        {% elif task.is_overdue %}
+                            <i class="bi bi-clock text-danger" style="font-size: 2rem;"></i>
+                            <h6 class="mt-2 text-danger">Vencida</h6>
+                            <small class="text-muted">No pudiste entregar a tiempo</small>
+                        {% else %}
+                            <i class="bi bi-clock text-warning" style="font-size: 2rem;"></i>
+                            <h6 class="mt-2 text-warning">Pendiente</h6>
+                            <small class="text-muted">Tienes hasta: {{ task.delivery_date }} {{ task.delivery_time }}</small>
+                        {% endif %}
                     </div>
                 </div>
-                <small class="text-muted">Progreso de entregas</small>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Entregas -->
-<div class="row mt-4">
-    <div class="col-12">
-        <div class="card">
-            <div class="card-header">
-                <h5 class="mb-0">
-                    <i class="bi bi-upload text-success"></i> Entregas ({{ deliveries|length }})
-                </h5>
-            </div>
-            <div class="card-body">
-                {% if deliveries %}
-                    <div class="table-responsive">
-                        <table class="table table-hover">
-                            <thead>
-                                <tr>
-                                    <th>Estudiante</th>
-                                    <th>Fecha y Hora de Entrega</th>
-                                    <th>Archivo</th>
-                                    <th>Calificación</th>
-                                    <th>Estado</th>
-                                    <th>Acciones</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {% for delivery in deliveries %}
-                                    <tr>
-                                        <td>
-                                            <strong>{{ delivery.student.name }}</strong><br>
-                                            <small class="text-muted">{{ delivery.student.email }}</small>
-                                        </td>
-                                        <td>
-                                            {{ delivery.date }} {{ delivery.delivery_time }}<br>
-                                            {% if delivery.is_late %}
-                                                <span class="badge bg-danger">Entrega tardía</span>
-                                            {% else %}
-                                                <span class="badge bg-success">A tiempo</span>
-                                            {% endif %}
-                                        </td>
-                                        <td>
-                                            <a href="{{ delivery.file_url }}" target="_blank" class="btn btn-sm btn-outline-primary">
-                                                <i class="bi bi-download"></i> Ver archivo
-                                            </a>
-                                        </td>
-                                        <td>
-                                            {% if delivery.grade %}
-                                                <strong>{{ delivery.grade|floatformat:2 }}/10</strong><br>
-                                                <small class="text-muted">{{ delivery.grade_status }}</small>
-                                            {% else %}
-                                                <span class="text-muted">Sin calificar</span>
-                                            {% endif %}
-                                        </td>
-                                        <td>
-                                            {% if delivery.feedback %}
-                                                <span class="badge bg-success">Calificada</span>
-                                            {% else %}
-                                                <span class="badge bg-warning">Pendiente</span>
-                                            {% endif %}
-                                        </td>
-                                        <td>
-                                            <div class="btn-group">
-                                                {% if not delivery.feedback %}
-                                                    <a href="{% url 'delivery_grade' delivery.id %}" class="btn btn-sm btn-outline-success">
-                                                        <i class="bi bi-check-circle"></i> Calificar
-                                                    </a>
-                                                {% else %}
-                                                    <button class="btn btn-sm btn-outline-info" data-bs-toggle="collapse" data-bs-target="#feedback-{{ delivery.id }}">
-                                                        <i class="bi bi-eye"></i> Ver feedback
-                                                    </button>
-                                                    <a href="{% url 'delivery_edit_grade' delivery.id %}" class="btn btn-sm btn-outline-warning">
-                                                        <i class="bi bi-pencil"></i> Editar
-                                                    </a>
-                                                {% endif %}
-                                            </div>
-                                        </td>
-                                    </tr>
-                                    {% if delivery.feedback %}
-                                        <tr class="collapse" id="feedback-{{ delivery.id }}">
-                                            <td colspan="6">
-                                                <div class="bg-light p-3 rounded">
-                                                    <h6>Retroalimentación:</h6>
-                                                    <p>{{ delivery.feedback }}</p>
-                                                    {% if delivery.grade %}
-                                                        <h6>Calificación:</h6>
-                                                        <p><strong>{{ delivery.grade|floatformat:2 }}/10</strong> - {{ delivery.grade_status }}</p>
-                                                    {% endif %}
-                                                    {% if delivery.file_corrected_url %}
-                                                        <a href="{{ delivery.file_corrected_url }}" target="_blank" class="btn btn-sm btn-outline-primary">
-                                                            <i class="bi bi-download"></i> Archivo Corregido
-                                                        </a>
-                                                    {% endif %}
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    {% endif %}
-                                {% endfor %}
-                            </tbody>
-                        </table>
-                    </div>
-                {% else %}
-                    <div class="text-center py-4 text-muted">
-                        <i class="bi bi-inbox fs-1"></i>
-                        <p class="mt-2">No hay entregas para esta tarea aún</p>
-                        <a href="{% url 'delivery_create' task.id %}" class="btn btn-success">
-                            <i class="bi bi-upload"></i> Hacer Primera Entrega
-                        </a>
-                    </div>
+                
+                {% if my_delivery %}
+                    <hr>
+                    <h6><i class="bi bi-file-earmark text-primary"></i> Mi Archivo</h6>
+                    {% if my_delivery.has_attachment %}
+                        <div class="d-flex align-items-start bg-light p-3 rounded">
+                            <div class="me-2 flex-shrink-0">
+                                <i class="bi bi-file-earmark-text text-primary fs-5"></i>
+                            </div>
+                            <div class="flex-grow-1 min-w-0 me-2">
+                                <div class="fw-bold text-truncate" style="max-width: 200px;" title="{{ my_delivery.attachment_name }}">
+                                    {{ my_delivery.attachment_name }}
+                                </div>
+                                <small class="text-muted">{{ my_delivery.attachment_size }} MB</small>
+                            </div>
+                            <div class="flex-shrink-0">
+                                <a href="{% url 'download_delivery_attachment' my_delivery.id %}" class="btn btn-sm btn-outline-primary">
+                                    <i class="bi bi-download"></i>
+                                </a>
+                            </div>
+                        </div>
+                    {% endif %}
+                    
+                    {% if my_delivery.grade %}
+                        <hr>
+                        <h6><i class="bi bi-star text-warning"></i> Calificación</h6>
+                        <div class="text-center">
+                            <span class="badge bg-primary fs-5">{{ my_delivery.grade }}/10</span>
+                        </div>
+                        {% if my_delivery.feedback %}
+                            <div class="mt-2 bg-light p-2 rounded">
+                                <small><strong>Comentarios:</strong></small><br>
+                                <small class="text-break">{{ my_delivery.feedback }}</small>
+                            </div>
+                        {% endif %}
+                        
+                        {% if my_delivery.has_corrected_attachment %}
+                            <div class="mt-2">
+                                <h6><i class="bi bi-file-earmark-check text-success"></i> Archivo Corregido</h6>
+                                <div class="d-flex align-items-start bg-success-subtle p-3 rounded">
+                                    <div class="me-2 flex-shrink-0">
+                                        <i class="bi bi-file-earmark-text text-success fs-5"></i>
+                                    </div>
+                                    <div class="flex-grow-1 min-w-0 me-2">
+                                        <div class="fw-bold text-truncate" style="max-width: 200px;" title="{{ my_delivery.corrected_attachment_name }}">
+                                            {{ my_delivery.corrected_attachment_name }}
+                                        </div>
+                                        <small class="text-muted">{{ my_delivery.corrected_attachment_size }} MB</small>
+                                    </div>
+                                    <div class="flex-shrink-0">
+                                        <a href="{% url 'download_corrected_attachment' my_delivery.id %}" class="btn btn-sm btn-success">
+                                            <i class="bi bi-download"></i>
+                                        </a>
+                                    </div>
+                                </div>
+                            </div>
+                        {% elif my_delivery.file_corrected_url %}
+                            <div class="mt-2">
+                                <h6><i class="bi bi-link-45deg text-success"></i> Archivo Corregido</h6>
+                                <a href="{{ my_delivery.file_corrected_url }}" target="_blank" class="btn btn-sm btn-success">
+                                    <i class="bi bi-link-45deg"></i> Ver archivo corregido
+                                </a>
+                            </div>
+                        {% endif %}
+                    {% else %}
+                        <hr>
+                        <div class="text-center text-muted">
+                            <i class="bi bi-hourglass-split"></i>
+                            <small>Esperando calificación</small>
+                        </div>
+                    {% endif %}
                 {% endif %}
             </div>
         </div>
+        
+        <!-- Navegación rápida -->
+        <div class="card mt-3">
+            <div class="card-header">
+                <h6 class="mb-0">
+                    <i class="bi bi-navigation text-info"></i> Acciones
+                </h6>
+            </div>
+            <div class="card-body">
+                <div class="d-grid gap-2">
+                    {% if can_deliver %}
+                        <a href="{% url 'delivery_create' task.id %}" class="btn btn-success btn-sm">
+                            <i class="bi bi-upload"></i> Hacer Entrega
+                        </a>
+                    {% elif can_edit %}
+                        <a href="{% url 'delivery_edit' my_delivery.id %}" class="btn btn-warning btn-sm">
+                            <i class="bi bi-pencil"></i> Modificar Entrega
+                        </a>
+                    {% endif %}
+                    <a href="{% url 'student_task_list' %}" class="btn btn-outline-primary btn-sm">
+                        <i class="bi bi-list"></i> Ver todas las tareas
+                    </a>
+                    <a href="{% url 'student_dashboard' %}" class="btn btn-outline-secondary btn-sm">
+                        <i class="bi bi-house"></i> Ir al dashboard
+                    </a>
+                </div>
+            </div>
+        </div>
     </div>
-</div>
-
-<div class="mt-3">
-    <a href="{% url 'student_task_list' %}" class="btn btn-secondary">
-        <i class="bi bi-arrow-left"></i> Volver a Tareas
-    </a>
 </div>
 {% endblock %}

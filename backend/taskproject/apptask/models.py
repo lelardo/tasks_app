@@ -37,6 +37,18 @@ def validate_cedula_ecuatoriana(value):
     
     return value
 
+def task_file_upload_path(instance, filename):
+    """Genera la ruta para archivos adjuntos de tareas"""
+    return f'task_files/{instance.school_class.identify}/{instance.theme[:50]}/{filename}'
+
+def delivery_file_upload_path(instance, filename):
+    """Genera la ruta para archivos de entregas de estudiantes"""
+    return f'deliveries/{instance.task.school_class.identify}/{instance.student.username}/{filename}'
+
+def corrected_file_upload_path(instance, filename):
+    """Genera la ruta para archivos corregidos del profesor"""
+    return f'corrected_files/{instance.task.school_class.identify}/{instance.student.username}/{filename}'
+
 
 class User(AbstractUser):
     # Campos existentes
@@ -167,8 +179,39 @@ class Task(models.Model):
     )
     created_at = models.DateTimeField(auto_now_add=True)  # Este campo SÍ existe en la BD
     
+    # Nuevo campo para archivo adjunto
+    attachment = models.FileField(
+        upload_to=task_file_upload_path,
+        blank=True,
+        null=True,
+        help_text='Archivo adjunto para la tarea (PDF, DOC, DOCX, TXT, máximo 10MB)',
+        verbose_name='Archivo adjunto'
+    )
+    
     def __str__(self):
         return f"{self.theme} - {self.school_class.identify}"
+    
+    @property
+    def has_attachment(self):
+        """Verifica si la tarea tiene un archivo adjunto"""
+        return bool(self.attachment)
+    
+    @property
+    def attachment_name(self):
+        """Obtiene el nombre del archivo adjunto"""
+        if self.attachment:
+            return self.attachment.name.split('/')[-1]
+        return None
+    
+    @property
+    def attachment_size(self):
+        """Obtiene el tamaño del archivo adjunto en MB"""
+        if self.attachment:
+            try:
+                return round(self.attachment.size / (1024 * 1024), 2)
+            except:
+                return 0
+        return 0
     
     @property
     def is_overdue(self):
@@ -191,10 +234,75 @@ class Delivery(models.Model):
     revisor = models.ForeignKey(User, on_delete=models.CASCADE, related_name='reviewed_deliveries')
     date = models.DateField()
     delivery_time = models.TimeField(default='12:00')
-    file_url = models.CharField(max_length=255)
+    file_url = models.CharField(max_length=255, blank=True)  # Mantener para compatibilidad
     feedback = models.TextField(blank=True)
     grade = models.DecimalField(max_digits=4, decimal_places=2, null=True, blank=True)
     file_corrected_url = models.CharField(max_length=255, blank=True)
+    
+    # Nuevo campo para archivo adjunto de la entrega
+    attachment = models.FileField(
+        upload_to=delivery_file_upload_path,
+        blank=True,
+        null=True,
+        help_text='Archivo de entrega (PDF, DOC, DOCX, TXT, ZIP, máximo 10MB)',
+        verbose_name='Archivo de entrega'
+    )
+    
+    # Nuevo campo para archivo corregido del profesor
+    corrected_attachment = models.FileField(
+        upload_to=corrected_file_upload_path,
+        blank=True,
+        null=True,
+        help_text='Archivo corregido del profesor (PDF, DOC, DOCX, TXT, ZIP, máximo 10MB)',
+        verbose_name='Archivo corregido'
+    )
+    
+    def __str__(self):
+        return f"{self.task.theme} - {self.student.display_name}"
+    
+    @property
+    def has_attachment(self):
+        """Verifica si la entrega tiene un archivo adjunto"""
+        return bool(self.attachment)
+    
+    @property
+    def attachment_name(self):
+        """Obtiene el nombre del archivo adjunto"""
+        if self.attachment:
+            return self.attachment.name.split('/')[-1]
+        return None
+    
+    @property
+    def attachment_size(self):
+        """Obtiene el tamaño del archivo adjunto en MB"""
+        if self.attachment:
+            try:
+                return round(self.attachment.size / (1024 * 1024), 2)
+            except:
+                return 0
+        return 0
+    
+    @property
+    def has_corrected_attachment(self):
+        """Verifica si la entrega tiene un archivo corregido"""
+        return bool(self.corrected_attachment)
+    
+    @property
+    def corrected_attachment_name(self):
+        """Obtiene el nombre del archivo corregido"""
+        if self.corrected_attachment:
+            return self.corrected_attachment.name.split('/')[-1]
+        return None
+    
+    @property
+    def corrected_attachment_size(self):
+        """Obtiene el tamaño del archivo corregido en MB"""
+        if self.corrected_attachment:
+            try:
+                return round(self.corrected_attachment.size / (1024 * 1024), 2)
+            except:
+                return 0
+        return 0
     
     def __str__(self):
         return f"{self.task.theme} - {self.student.display_name}"

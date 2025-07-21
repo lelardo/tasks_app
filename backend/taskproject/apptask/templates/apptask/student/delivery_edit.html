@@ -35,11 +35,43 @@
             </div>
         </div>
 
-        <!-- Formulario de entrega -->
+        <!-- Información de entrega actual -->
+        <div class="card mb-4">
+            <div class="card-header bg-warning text-white">
+                <h5 class="mb-0">
+                    <i class="bi bi-file-earmark"></i> Mi Entrega Actual
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <p><strong>Fecha de entrega:</strong> {{ delivery.date }} {{ delivery.delivery_time }}</p>
+                        {% if delivery.has_attachment %}
+                            <p><strong>Archivo actual:</strong> {{ delivery.attachment_name }}</p>
+                            <p><strong>Tamaño:</strong> {{ delivery.attachment_size }} MB</p>
+                        {% endif %}
+                    </div>
+                    <div class="col-md-6">
+                        {% if delivery.grade %}
+                            <p><strong>Calificación:</strong> {{ delivery.grade }}/10</p>
+                        {% else %}
+                            <p><strong>Estado:</strong> <span class="text-warning">Pendiente de calificar</span></p>
+                        {% endif %}
+                        {% if delivery.has_attachment %}
+                            <a href="{% url 'download_delivery_attachment' delivery.id %}" class="btn btn-sm btn-outline-primary">
+                                <i class="bi bi-download"></i> Descargar archivo actual
+                            </a>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Formulario de modificación -->
         <div class="card">
-            <div class="card-header bg-success text-white">
+            <div class="card-header bg-danger text-white">
                 <h4 class="mb-0">
-                    <i class="bi bi-upload"></i> {{ title }}
+                    <i class="bi bi-pencil"></i> {{ title }}
                 </h4>
             </div>
             <div class="card-body">
@@ -48,11 +80,11 @@
                     
                     <div class="mb-3">
                         <label for="{{ form.attachment.id_for_label }}" class="form-label">
-                            <i class="bi bi-paperclip"></i> Archivo de Entrega
+                            <i class="bi bi-paperclip"></i> Nuevo Archivo de Entrega
                         </label>
                         {{ form.attachment }}
                         <div class="form-text">
-                            Adjunta tu archivo de entrega. Formatos permitidos: PDF, DOC, DOCX, TXT, ZIP, RAR (máximo 10MB)
+                            Selecciona un nuevo archivo para reemplazar tu entrega actual. Formatos permitidos: PDF, DOC, DOCX, TXT, ZIP, RAR (máximo 10MB)
                         </div>
                         {% if form.attachment.errors %}
                             <div class="text-danger small">
@@ -61,23 +93,23 @@
                         {% endif %}
                     </div>
 
-                    <div class="alert alert-info">
-                        <i class="bi bi-info-circle"></i>
+                    <div class="alert alert-warning">
+                        <i class="bi bi-exclamation-triangle"></i>
                         <strong>Importante:</strong> 
                         <ul class="mb-0 mt-2">
-                            <li>El archivo debe ser menor a 10MB</li>
-                            <li>Formatos permitidos: PDF, DOC, DOCX, TXT, ZIP, RAR</li>
-                            <li>La entrega se registrará con la fecha actual</li>
-                            <li>Una vez entregada, no podrás modificarla</li>
+                            <li>Al subir un nuevo archivo, se reemplazará completamente tu entrega anterior</li>
+                            <li>La fecha y hora de entrega se actualizarán al momento actual</li>
+                            <li>Si ya has sido calificado, la calificación se mantendrá</li>
+                            <li>Esta acción no se puede deshacer</li>
                         </ul>
                     </div>
 
                     <div class="d-flex gap-2">
-                        <button type="submit" class="btn btn-success">
-                            <i class="bi bi-upload"></i> Realizar Entrega
+                        <button type="submit" class="btn btn-danger">
+                            <i class="bi bi-upload"></i> Actualizar Entrega
                         </button>
                         <a href="{% url 'student_task_detail' task.id %}" class="btn btn-secondary">
-                            <i class="bi bi-arrow-left"></i> Volver a la Tarea
+                            <i class="bi bi-arrow-left"></i> Volver sin cambios
                         </a>
                     </div>
                 </form>

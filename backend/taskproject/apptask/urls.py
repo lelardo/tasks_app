@@ -29,7 +29,7 @@ urlpatterns = [
     path('teacher/tasks/create/', views.teacher_task_create, name='teacher_task_create'),
     path('teacher/tasks/<int:task_id>/', views.teacher_task_detail, name='teacher_task_detail'),
     path('teacher/deliveries/', views.teacher_delivery_list, name='teacher_delivery_list'),
-    #path('teacher/deliveries/<int:delivery_id>/grade/', views.teacher_delivery_grade, name='teacher_delivery_grade'),
+    path('teacher/deliveries/<int:delivery_id>/grade/', views.teacher_delivery_grade, name='teacher_delivery_grade'),
     
     
     # === URLs PARA ESTUDIANTES ===
@@ -38,9 +38,16 @@ urlpatterns = [
     path('student/tasks/<int:task_id>/', views.student_task_detail, name='student_task_detail'),
     path('student/tasks/<int:task_id>/deliver/', views.student_delivery_create, name='delivery_create'),
     path('student/deliveries/', views.student_delivery_list, name='student_delivery_list'),
+    path('student/deliveries/<int:delivery_id>/edit/', views.student_delivery_edit, name='delivery_edit'),
     # === URLs PARA TAREAS ===
     path('tasks/<int:task_id>/edit/', views.task_edit, name='task_edit'),   
+    path('tasks/<int:task_id>/delete/', views.task_delete, name='task_delete'),
     path('tasks/create/', views.create_task, name='create_task'),
+    path('tasks/<int:task_id>/download/', views.download_task_attachment, name='download_task_attachment'),
+    path('deliveries/<int:delivery_id>/download/', views.download_delivery_attachment, name='download_delivery_attachment'),
+    path('deliveries/<int:delivery_id>/download-corrected/', views.download_corrected_attachment, name='download_corrected_attachment'),
+    path('deliveries/<int:delivery_id>/grade/', views.delivery_grade, name='delivery_grade'),
+    path('deliveries/<int:delivery_id>/edit-grade/', views.delivery_edit_grade, name='delivery_edit_grade'),
     
     path('api/auth/register/', views.UserRegistrationView.as_view(), name='api_register'),
     path('api/auth/login/', views.UserLoginView.as_view(), name='api_login'),

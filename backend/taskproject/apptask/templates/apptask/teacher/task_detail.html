@@ -10,6 +10,12 @@
         <a href="{% url 'task_edit' task.id %}" class="btn btn-warning">
             <i class="bi bi-pencil"></i> Editar Tarea
         </a>
+        <form method="post" action="{% url 'task_delete' task.id %}" style="display: inline;">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-danger" onclick="return confirm('¿Seguro que quieres eliminar esta tarea?')">
+                <i class="bi bi-trash"></i> Eliminar
+            </button>
+        </form>
         <a href="{% url 'teacher_task_list' %}" class="btn btn-outline-secondary">
             <i class="bi bi-arrow-left"></i> Volver a Mis Tareas
         </a>
@@ -48,6 +54,26 @@
                     <hr>
                     <h6>Instrucciones:</h6>
                     <p>{{ task.instruction|linebreaks }}</p>
+                {% endif %}
+                
+                <!-- Mostrar archivo adjunto si existe -->
+                {% if task.has_attachment %}
+                    <hr>
+                    <h6><i class="bi bi-paperclip"></i> Archivo Adjunto:</h6>
+                    <div class="d-flex align-items-center p-3 bg-light rounded">
+                        <div class="me-3">
+                            <i class="bi bi-file-earmark-text text-primary" style="font-size: 2rem;"></i>
+                        </div>
+                        <div class="flex-grow-1">
+                            <strong>{{ task.attachment_name }}</strong><br>
+                            <small class="text-muted">Tamaño: {{ task.attachment_size }} MB</small>
+                        </div>
+                        <div>
+                            <a href="{% url 'download_task_attachment' task.id %}" class="btn btn-outline-primary btn-sm">
+                                <i class="bi bi-download"></i> Descargar
+                            </a>
+                        </div>
+                    </div>
                 {% endif %}
             </div>
         </div>
@@ -145,21 +171,24 @@
                             </td>
                             <td>
                                 <div class="btn-group btn-group-sm">
-                                    <a href="{{ delivery.file_url }}" target="_blank" 
-                                       class="btn btn-outline-primary" title="Ver archivo">
-                                        <i class="bi bi-eye"></i>
-                                    </a>
-                                    {% if delivery.is_graded %}
-                                        <a href="{% url 'teacher_delivery_grade' delivery.id %}" 
-                                           class="btn btn-outline-warning" title="Editar calificación">
-                                            <i class="bi bi-pencil"></i>
+                                    {% if delivery.has_attachment %}
+                                        <a href="{% url 'download_delivery_attachment' delivery.id %}" target="_blank" 
+                                           class="btn btn-outline-primary" title="Descargar archivo">
+                                            <i class="bi bi-download"></i>
                                         </a>
-                                    {% else %}
-                                        <a href="{% url 'teacher_delivery_grade' delivery.id %}" 
-                                           class="btn btn-outline-success" title="Calificar">
-                                            <i class="bi bi-check-circle"></i>
+                                    {% elif delivery.file_url %}
+                                        <a href="{{ delivery.file_url }}" target="_blank" 
+                                           class="btn btn-outline-primary" title="Ver archivo">
+                                            <i class="bi bi-eye"></i>
                                         </a>
                                     {% endif %}
+                                    
+                                    <a href="{% url 'teacher_delivery_grade' delivery.id %}" 
+                                       class="btn {% if delivery.is_graded %}btn-success{% else %}btn-warning{% endif %}" 
+                                       title="{% if delivery.is_graded %}Ver/Editar calificación{% else %}Calificar entrega{% endif %}">
+                                        <i class="bi bi-{% if delivery.is_graded %}eye{% else %}star{% endif %}"></i>
+                                        {% if delivery.is_graded %}Ver{% else %}Calificar{% endif %}
+                                    </a>
                                 </div>
                             </td>
                         </tr>
