@@ -1465,6 +1465,62 @@ def teacher_task_list(request):
     }
     return render(request, 'apptask/teacher/task_list.html', context)
 
+@login_required
+@user_passes_test(teacher_required)
+def teacher_pending_reviews(request):
+        """Vista para docentes: lista de tareas con entregas pendientes de revisión"""
+        teacher = request.user
+
+        # Obtener tareas del docente con entregas pendientes (sin feedback)
+        tasks_with_pending = (
+            Task.objects
+            .filter(school_class__teacher=teacher)
+            .annotate(pending_reviews=models.Count('delivery_list', filter=Q(delivery_list__feedback='')))
+            .filter(pending_reviews__gt=0)
+            .select_related('school_class')
+            .order_by('-created_at')
+        )
+
+        # Paginación
+        paginator = Paginator(tasks_with_pending, 10)
+        page_number = request.GET.get('page')
+        page_obj = paginator.get_page(page_number)
+
+        context = {
+            'tasks_with_pending': page_obj,
+            'is_paginated': paginator.num_pages > 1,
+        }
+        return render(request, 'apptask/teacher/pending_reviews.html', context)
+
+@login_required
+@user_passes_test(teacher_required)
+def teacher_class_detail(request, class_id):
+        """Vista detallada de una clase para docentes"""
+        teacher = request.user
+        school_class = get_object_or_404(SchoolClass, id=class_id, teacher=teacher)
+        students = school_class.student_list.all().order_by('first_name', 'last_name')
+        tasks = school_class.tasks.all().order_by('-created_at')
+
+        # Estadísticas de la clase
+        total_students = students.count()
+        total_tasks = tasks.count()
+        total_deliveries = Delivery.objects.filter(task__school_class=school_class).count()
+        graded_deliveries = Delivery.objects.filter(task__school_class=school_class, grade__isnull=False).count()
+        avg_grade = Delivery.objects.filter(task__school_class=school_class, grade__isnull=False).aggregate(
+            average=models.Avg('grade')
+        )['average'] or 0
+
+        context = {
+            'school_class': school_class,
+            'students': students,
+            'tasks': tasks,
+            'total_students': total_students,
+            'total_tasks': total_tasks,
+            'total_deliveries': total_deliveries,
+            'graded_deliveries': graded_deliveries,
+            'avg_grade': round(avg_grade, 2),
+        }
+        return render(request, 'apptask/teacher/class_detail.html', context)
 # === VISTAS PARA ESTUDIANTES ===
 @login_required
 @user_passes_test(student_required)

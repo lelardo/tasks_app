@@ -1,0 +1,119 @@
+
+{% extends 'apptask/base.html' %}
+{% block title %}Detalle de Clase - Panel Docente{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row mb-3">
+        <div class="col-12">
+            <h1 class="display-5">
+                <i class="bi bi-book text-success"></i> {{ school_class.identify }}
+            </h1>
+            <span class="badge bg-primary me-2">{{ school_class.course }}</span>
+            <span class="badge bg-info">{{ school_class.units_count }} unidades</span>
+        </div>
+    </div>
+    <div class="row">
+        <div class="col-md-6 mb-4">
+            <div class="card shadow-sm">
+                <div class="card-header bg-success text-white">
+                    <i class="bi bi-people"></i> Estudiantes
+                </div>
+                <div class="card-body">
+                    {% if students %}
+                        <ul class="list-group">
+                            {% for student in students %}
+                                <li class="list-group-item d-flex justify-content-between align-items-center">
+                                    <span>{{ student.display_name }}</span>
+                                    <span class="badge bg-secondary">{{ student.email }}</span>
+                                </li>
+                            {% endfor %}
+                        </ul>
+                    {% else %}
+                        <div class="text-center text-muted py-3">
+                            <i class="bi bi-person-x fs-2"></i>
+                            <p class="mt-2">No hay estudiantes asignados</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6 mb-4">
+            <div class="card shadow-sm">
+                <div class="card-header bg-primary text-white">
+                    <i class="bi bi-journal-text"></i> Tareas de la Clase
+                </div>
+                <div class="card-body">
+                    {% if tasks %}
+                        <ul class="list-group">
+                            {% for task in tasks %}
+                                <li class="list-group-item d-flex justify-content-between align-items-center">
+                                    <span>
+                                        <strong>
+                                            <a href="{% url 'teacher_task_detail' task.id %}" class="text-decoration-none text-dark">
+                                                {{ task.theme }}
+                                            </a>
+                                        </strong><br>
+                                        <small class="text-muted"><i class="bi bi-calendar"></i> {{ task.delivery_date }} {{ task.delivery_time }}</small>
+                                    </span>
+                                    {% if task.is_overdue %}
+                                        <span class="badge bg-danger">Vencida</span>
+                                    {% else %}
+                                        <span class="badge bg-success">Activa</span>
+                                    {% endif %}
+                                </li>
+                            {% endfor %}
+                        </ul>
+                    {% else %}
+                        <div class="text-center text-muted py-3">
+                            <i class="bi bi-inbox fs-2"></i>
+                            <p class="mt-2">No hay tareas asignadas</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="row mb-4">
+        <div class="col-md-4">
+            <div class="card text-center">
+                <div class="card-body">
+                    <h6 class="card-title"><i class="bi bi-people"></i> Total estudiantes</h6>
+                    <h2 class="text-success">{{ total_students }}</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card text-center">
+                <div class="card-body">
+                    <h6 class="card-title"><i class="bi bi-journal-text"></i> Total tareas</h6>
+                    <h2 class="text-primary">{{ total_tasks }}</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card text-center">
+                <div class="card-body">
+                    <h6 class="card-title"><i class="bi bi-star"></i> Promedio de calificaciones</h6>
+                    <h2 class="text-warning">{{ avg_grade }}</h2>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-body">
+                    <p><strong>Total entregas:</strong> {{ total_deliveries }}</p>
+                    <p><strong>Entregas calificadas:</strong> {{ graded_deliveries }}</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6 text-end">
+            <a href="{% url 'teacher_dashboard' %}" class="btn btn-secondary mt-4">
+                <i class="bi bi-arrow-left"></i> Volver al panel docente
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}

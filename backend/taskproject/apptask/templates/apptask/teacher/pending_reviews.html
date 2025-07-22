@@ -1,0 +1,80 @@
+{% extends 'apptask/base.html' %}
+{% block title %}Entregas Pendientes de Revisión - Panel Docente{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="display-5">
+            <i class="bi bi-exclamation-triangle text-warning"></i> Entregas Pendientes
+        </h1>
+        <a href="{% url 'teacher_dashboard' %}" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left"></i> Volver al Dashboard
+        </a>
+    </div>
+    <div class="row">
+        {% if tasks_with_pending %}
+            {% for task in tasks_with_pending %}
+                <div class="col-md-6 col-lg-4 mb-4">
+                    <div class="card h-100 shadow-sm">
+                        <div class="card-header bg-warning text-dark">
+                            <h5 class="card-title mb-0">
+                                <a href="{% url 'teacher_task_detail' task.id %}" class="text-decoration-none text-dark">
+                                    {{ task.theme }}
+                                </a>
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <p class="card-text">
+                                <i class="bi bi-building"></i> <strong>Clase:</strong> {{ task.school_class.identify }}<br>
+                                <i class="bi bi-calendar"></i> <strong>Vence:</strong> {{ task.delivery_date }} {{ task.delivery_time }}<br>
+                                <i class="bi bi-upload"></i> <strong>Entregas pendientes:</strong> {{ task.pending_reviews }}
+                            </p>
+                            <div class="alert alert-warning py-2 mb-0">
+                                <i class="bi bi-exclamation-triangle"></i> Tienes entregas sin revisar
+                            </div>
+                        </div>
+                        <div class="card-footer bg-transparent">
+                            <a href="{% url 'teacher_task_detail' task.id %}" class="btn btn-outline-primary btn-sm w-100">
+                                <i class="bi bi-eye"></i> Ver Detalles de la Tarea
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            {% endfor %}
+        {% else %}
+            <div class="col-12">
+                <div class="text-center py-5">
+                    <i class="bi bi-check-circle display-1 text-success"></i>
+                    <h3 class="text-success mt-3">¡No tienes entregas pendientes de revisión!</h3>
+                    <p class="text-muted">Todas las entregas han sido revisadas y calificadas.</p>
+                </div>
+            </div>
+        {% endif %}
+    </div>
+    {% if is_paginated %}
+        <nav aria-label="Paginación de tareas pendientes">
+            <ul class="pagination justify-content-center">
+                {% if tasks_with_pending.has_previous %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ tasks_with_pending.previous_page_number }}" aria-label="Anterior">
+                            <span aria-hidden="true">&laquo;</span>
+                        </a>
+                    </li>
+                {% endif %}
+                {% for num in tasks_with_pending.paginator.page_range %}
+                    <li class="page-item {% if tasks_with_pending.number == num %}active{% endif %}">
+                        <a class="page-link" href="?page={{ num }}">{{ num }}</a>
+                    </li>
+                {% endfor %}
+                {% if tasks_with_pending.has_next %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ tasks_with_pending.next_page_number }}" aria-label="Siguiente">
+                            <span aria-hidden="true">&raquo;</span>
+                        </a>
+                    </li>
+                {% endif %}
+            </ul>
+        </nav>
+    {% endif %}
+</div>
+{% endblock %}
