@@ -1,0 +1,27 @@
+{% extends 'apptask/base.html' %}
+{% block title %}Detalle de Clase - Sistema de Tareas{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h1 class="display-6 mb-3">
+        <i class="bi bi-book text-success"></i> Detalle de Clase
+    </h1>
+    <div class="card mb-4">
+        <div class="card-body">
+            <h4 class="card-title">{{ school_class.identify }}</h4>
+            <p class="card-text"><strong>Curso:</strong> {{ school_class.course }}</p>
+            <p class="card-text"><strong>Docente:</strong> {{ school_class.teacher.display_name }}</p>
+            <p class="card-text"><strong>Cantidad de Unidades:</strong> {{ school_class.units_count }}</p>
+            <p class="card-text"><strong>Estudiantes:</strong></p>
+            <ul>
+                {% for student in school_class.student_list.all %}
+                    <li>{{ student.display_name }} ({{ student.email }})</li>
+                {% empty %}
+                    <li>No hay estudiantes asignados.</li>
+                {% endfor %}
+            </ul>
+        </div>
+    </div>
+    <a href="{% url 'admin_class_list' %}" class="btn btn-secondary">Volver a la lista de clases</a>
+</div>
+{% endblock %}

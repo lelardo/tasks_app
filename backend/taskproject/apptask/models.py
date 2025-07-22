@@ -144,6 +144,7 @@ class User(AbstractUser):
 # Mantener los modelos existentes exactamente como están
 class SchoolClass(models.Model):
     identify = models.CharField(max_length=100)
+    units_count = models.PositiveIntegerField(default=3, help_text="Cantidad de unidades en la clase")
     course = models.CharField(max_length=100)
     teacher = models.ForeignKey(
         User, 
@@ -161,6 +162,7 @@ class SchoolClass(models.Model):
     
     def __str__(self):
         return f"{self.identify} - {self.course}"
+
     
     class Meta:
         verbose_name = "Clase"
@@ -170,6 +172,7 @@ class SchoolClass(models.Model):
 class Task(models.Model):
     theme = models.CharField(max_length=200)
     instruction = models.TextField(blank=True)
+    unit = models.PositiveIntegerField(default=3, help_text="Cantidad de unidades en la clase")
     delivery_date = models.DateField()
     delivery_time = models.TimeField(default='23:59', help_text='Hora límite de entrega')
     school_class = models.ForeignKey(
@@ -338,3 +341,4 @@ class Notification(models.Model):
     
     def __str__(self):
         return f"Notificación para {self.student.display_name}: {self.message[:50]}"
+    

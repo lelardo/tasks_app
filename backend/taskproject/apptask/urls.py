@@ -19,8 +19,10 @@ urlpatterns = [
     path('admin-panel/users/create/', views.admin_user_create, name='admin_user_create'),
     path('admin-panel/classes/', views.admin_class_list, name='admin_class_list'),
     path('admin-panel/config/', views.admin_system_config, name='admin_system_config'),
-    path('admin-panel/backup/download/<str:filename>/', views.admin_download_backup, name='admin_download_backup'),  # Nueva URL
+    path('admin-panel/backup/download/<str:filename>/', views.admin_download_backup, name='admin_download_backup'),
+    path('admin-panel/classes/<int:class_id>/', views.admin_class_detail, name='admin_class_detail'),
     # === URLs DE ADMINISTRACIÓN ===
+    path('admin-panel/class/create/', views.admin_class_create, name='admin_class_create'),
     path('admin-panel/users/edit/<int:user_id>/', views.admin_user_edit, name='admin_user_edit'),
     #path('admin-panel/classes/create/', views.admin_class_create, name='admin_class_create'),
     

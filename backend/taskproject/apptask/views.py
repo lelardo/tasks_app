@@ -144,6 +144,7 @@ def admin_dashboard(request):
         'total_tasks': total_tasks,
         'recent_users': recent_users,
         'recent_classes': recent_classes,
+        'show_create_class': True,  # Habilita el botón de nueva clase
     }
     return render(request, 'apptask/admin/dashboard.html', context)
 
@@ -951,6 +952,53 @@ def admin_user_create(request):
 # === GESTIÓN DE CLASES (SOLO ADMIN) ===
 @login_required
 @user_passes_test(admin_required)
+def admin_class_create(request):
+    """Crear nueva clase (solo admin)"""
+    if request.method == 'POST':
+        identify = request.POST.get('identify')
+        course = request.POST.get('course')
+        teacher_id = request.POST.get('teacher')
+        student_ids = request.POST.getlist('students')
+        units_count = int(request.POST.get('units_count', 3))  # un entero que ingresa el user, por defecto 3
+
+        # Validar que no exista otra clase con el mismo identificador
+        if SchoolClass.objects.filter(identify=identify).exists():
+            messages.error(request, 'Ya existe una clase con este identificador.')
+            teachers = User.objects.filter(role='teacher')
+            students = User.objects.filter(role='student').order_by('first_name', 'last_name')
+            return render(request, 'apptask/admin/class_form.html', {
+                'teachers': teachers,
+                'students': students,
+                'form_data': request.POST,
+                'title': 'Crear Nueva Clase'
+            })
+
+        try:
+            teacher = User.objects.get(id=teacher_id, role='teacher')
+            school_class = SchoolClass.objects.create(
+                identify=identify,
+                course=course,
+                teacher=teacher,
+                units_count=units_count or 3
+            )
+            if student_ids:
+                students = User.objects.filter(id__in=student_ids, role='student')
+                school_class.student_list.add(*students)
+            messages.success(request, f'Clase {school_class.identify} creada exitosamente.')
+            return redirect('admin_class_list')
+        except Exception as e:
+            messages.error(request, f'Error al crear clase: {str(e)}')
+
+    teachers = User.objects.filter(role='teacher')
+    students = User.objects.filter(role='student').order_by('first_name', 'last_name')
+    context = {
+        'teachers': teachers,
+        'students': students,
+        'title': 'Crear Nueva Clase'
+    }
+    return render(request, 'apptask/admin/class_form.html', context)
+@login_required
+@user_passes_test(admin_required)
 def admin_class_list(request):
     """Lista de clases para administradores"""
     classes = SchoolClass.objects.all().order_by('-id')
@@ -974,6 +1022,38 @@ def admin_class_list(request):
         'total_teachers': total_teachers,
     }
     return render(request, 'apptask/admin/class_list.html', context)
+
+
+@login_required
+@user_passes_test(admin_required)
+def admin_class_detail(request, class_id):
+        """Vista detallada de una clase para administradores"""
+        school_class = get_object_or_404(SchoolClass, id=class_id)
+        students = school_class.student_list.all().order_by('first_name', 'last_name')
+        tasks = school_class.tasks.all().order_by('-created_at')
+        teacher = school_class.teacher
+
+        # Estadísticas de la clase
+        total_students = students.count()
+        total_tasks = tasks.count()
+        total_deliveries = Delivery.objects.filter(task__school_class=school_class).count()
+        graded_deliveries = Delivery.objects.filter(task__school_class=school_class, grade__isnull=False).count()
+        avg_grade = Delivery.objects.filter(task__school_class=school_class, grade__isnull=False).aggregate(
+            average=models.Avg('grade')
+        )['average'] or 0
+
+        context = {
+            'school_class': school_class,
+            'teacher': teacher,
+            'students': students,
+            'tasks': tasks,
+            'total_students': total_students,
+            'total_tasks': total_tasks,
+            'total_deliveries': total_deliveries,
+            'graded_deliveries': graded_deliveries,
+            'avg_grade': round(avg_grade, 2),
+        }
+        return render(request, 'apptask/admin/class_detail.html', context)
 
 @login_required
 @user_passes_test(admin_required)
