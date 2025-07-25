@@ -36,7 +36,7 @@
 
                     <div class="mb-3">
                         <label for="id_instruction" class="form-label">
-                            <i class="bi bi-text-paragraph"></i> Instrucciones *
+                            <i class="bi bi-text-paragraph"></i> Instrucciones
                         </label>
                         {{ form.instruction }}
                         {% if form.instruction.errors %}
@@ -120,6 +120,30 @@
                                 {% endif %}
                             </div>
                         </div>
+                        <script>
+                        document.addEventListener('DOMContentLoaded', function() {
+                            const timeInput = document.getElementById('id_delivery_time');
+                            const dateInput = document.getElementById('id_delivery_date');
+                            function setMinTime() {
+                                const now = new Date();
+                                const selectedDate = new Date(dateInput.value);
+                                // Si la fecha es hoy, el mínimo es ahora + 5 minutos
+                                if (selectedDate.toISOString().split('T')[0] === now.toISOString().split('T')[0]) {
+                                    now.setMinutes(now.getMinutes() + 5);
+                                    const minTime = now.toTimeString().slice(0,5);
+                                    timeInput.min = minTime;
+                                    // Si el valor actual es menor, lo ajusta
+                                    if (timeInput.value && timeInput.value < minTime) {
+                                        timeInput.value = minTime;
+                                    }
+                                } else {
+                                    timeInput.min = "00:00";
+                                }
+                            }
+                            dateInput.addEventListener('change', setMinTime);
+                            setMinTime();
+                        });
+                        </script>
                     </div>
 
                     <div class="alert alert-info">
@@ -132,7 +156,8 @@
                             <i class="bi bi-arrow-left"></i> Cancelar
                         </a>
                         <button type="submit" class="btn btn-primary">
-                            <i class="bi bi-check-circle"></i> Crear Tarea
+                            <i class="bi bi-check-circle"></i>
+                            {% if task %}Actualizar Tarea{% else %}Crear Tarea{% endif %}
                         </button>
                     </div>
                 </form>

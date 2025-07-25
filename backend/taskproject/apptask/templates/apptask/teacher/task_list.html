@@ -95,9 +95,9 @@
                             <a href="{% url 'teacher_task_detail' task.id %}" class="btn btn-outline-primary btn-sm flex-fill">
                                 <i class="bi bi-eye"></i> Ver Detalles
                             </a>
-                            <button class="btn btn-outline-warning btn-sm" onclick="alert('Editar tarea en desarrollo')">
-                                <i class="bi bi-pencil"></i> Editar
-                            </button>
+                            <a href="{% url 'task_edit' task.id %}" class="btn btn-warning btn-sm flex-fill">
+                                <i class="bi bi-pencil"></i> Editar Tarea
+                            </a>
                         </div>
                     </div>
                 </div>

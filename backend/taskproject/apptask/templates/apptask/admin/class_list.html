@@ -259,6 +259,25 @@
     </div>
 </div>
 {% endfor %}
+
+<div class="col-md-12">
+    <div class="card">
+        <div class="card-body">
+            <h5>Clases</h5>
+            <ul class="list-group">
+            {% for school_class in classes %}
+                <li class="list-group-item d-flex justify-content-between align-items-center">
+                    <span>{{ school_class.identify }} - {{ school_class.course }}</span>
+                    <a href="{% url 'teacher_class_detail' school_class.id %}" class="btn btn-outline-primary btn-sm">Ver detalle</a>
+                </li>
+            {% empty %}
+                <li class="list-group-item">No hay clases registradas.</li>
+            {% endfor %}
+            </ul>
+        </div>
+    </div>
+</div>
+
 <script>
     function confirmDelete(classId, className) {
         alert('Función de eliminar clase en desarrollo');

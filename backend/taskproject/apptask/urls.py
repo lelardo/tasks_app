@@ -34,7 +34,8 @@ urlpatterns = [
     path('teacher/tasks/<int:task_id>/', views.teacher_task_detail, name='teacher_task_detail'),
     path('teacher/deliveries/', views.teacher_delivery_list, name='teacher_delivery_list'),
     path('teacher/deliveries/<int:delivery_id>/grade/', views.teacher_delivery_grade, name='teacher_delivery_grade'),
-    
+    path('teacher/classes/<int:class_id>/', views.teacher_class_detail, name='teacher_class_detail'),
+    path('teacher/pending-reviews/', views.teacher_pending_reviews, name='teacher_pending_reviews'),
     
     # === URLs PARA ESTUDIANTES ===
     path('student/', views.student_dashboard, name='student_dashboard'),
