@@ -108,17 +108,15 @@
                                     <a href="{% url 'admin_class_detail' class.id %}" class="btn btn-outline-info" title="Ver detalles">
                                         <i class="bi bi-eye"></i>
                                     </a>
-                                    </button>
-                                    <button type="button" class="btn btn-outline-warning"
-                                            onclick="alert('Función de editar clase en desarrollo')" 
-                                            title="Editar clase">
+                                    <a href="{% url 'admin_class_edit' class.id %}" class="btn btn-outline-warning" title="Editar clase">
                                         <i class="bi bi-pencil"></i>
-                                    </button>
-                                    <button type="button" class="btn btn-outline-danger" 
-                                            onclick="alert('Función de eliminar clase en desarrollo')" 
-                                            title="Eliminar clase">
-                                        <i class="bi bi-trash"></i>
-                                    </button>
+                                    </a>
+                                    <form method="post" action="{% url 'admin_class_delete' class.id %}" style="display:inline;" onsubmit="return confirm('¿Estás seguro de que deseas eliminar la clase {{ class.identify }}?');">
+                                        {% csrf_token %}
+                                        <button type="submit" class="btn btn-outline-danger" title="Eliminar clase">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </form>
                                 </div>
                             </td>
                         </tr>

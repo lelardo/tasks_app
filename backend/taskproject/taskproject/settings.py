@@ -77,19 +77,7 @@ WSGI_APPLICATION = 'taskproject.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': os.getenv('DB_ENGINE', 'django.db.backends.postgresql'),
-        'NAME': os.getenv('DB_NAME', 'postgres'),
-        'USER': os.getenv('DB_USER', 'tareasbdd'),
-        'PASSWORD': os.getenv('DB_PASSWORD', 'task@1234'),
-        'HOST': os.getenv('DB_HOST', 'basetareas.postgres.database.azure.com'),
-        'PORT': os.getenv('DB_PORT', '5432'),
-        'OPTIONS': {
-            'sslmode': 'require',
-            # Optimizaciones para conexión remota
-            'connect_timeout': 10,
-            'options': '-c statement_timeout=30000'  # 30 segundos timeout
-        },
-        # Pool de conexiones para mejorar rendimiento
-        'CONN_MAX_AGE': 60,  # Reutilizar conexiones por 60 segundos
+        'NAME': os.getenv('DB_NAME', 'postgres'),# Reutilizar conexiones por 60 segundos
     }
 }
 

@@ -23,7 +23,8 @@ urlpatterns = [
     path('admin-panel/classes/<int:class_id>/', views.admin_class_detail, name='admin_class_detail'),
     # === URLs DE ADMINISTRACIÓN ===
     path('admin-panel/class/create/', views.admin_class_create, name='admin_class_create'),
-    path('admin-panel/users/edit/<int:user_id>/', views.admin_user_edit, name='admin_user_edit'),
+    path('admin-panel/classes/edit/<int:class_id>/', views.admin_class_edit, name='admin_class_edit'),
+    path('admin-panel/classes/delete/<int:class_id>/', views.admin_class_delete, name='admin_class_delete'),
     #path('admin-panel/classes/create/', views.admin_class_create, name='admin_class_create'),
     
     # === URLs PARA DOCENTES ===
