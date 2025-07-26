@@ -10,12 +10,9 @@
         <a href="{% url 'task_edit' task.id %}" class="btn btn-warning">
             <i class="bi bi-pencil"></i> Editar Tarea
         </a>
-        <form method="post" action="{% url 'task_delete' task.id %}" style="display: inline;">
-            {% csrf_token %}
-            <button type="submit" class="btn btn-danger" onclick="return confirm('¿Seguro que quieres eliminar esta tarea?')">
-                <i class="bi bi-trash"></i> Eliminar
-            </button>
-        </form>
+        <button type="button" class="btn btn-danger" onclick="showDeleteTaskConfirmation('{{ task.id }}', '{{ task.theme }}', '{{ task.school_class.identify }}', '{{ task.school_class.course }}', {{ total_deliveries }}, {{ total_students }})">
+            <i class="bi bi-trash"></i> Eliminar
+        </button>
         <a href="{% url 'teacher_task_list' %}" class="btn btn-outline-secondary">
             <i class="bi bi-arrow-left"></i> Volver a Mis Tareas
         </a>
@@ -114,110 +111,68 @@
     </div>
 </div>
 
-<!-- Lista de entregas -->
-<div class="card">
-    <div class="card-header d-flex justify-content-between align-items-center">
-        <h5 class="mb-0">
-            <i class="bi bi-upload"></i> Entregas de Estudiantes
-        </h5>
-        <span class="badge bg-primary">{{ total_deliveries }} de {{ total_students }}</span>
-    </div>
-    <div class="card-body">
-        {% if deliveries %}
-            <div class="table-responsive">
-                <table class="table table-hover">
-                    <thead class="table-light">
-                        <tr>
-                            <th>Estudiante</th>
-                            <th>Fecha de Entrega</th>
-                            <th>Estado</th>
-                            <th>Calificación</th>
-                            <th>Acciones</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for delivery in deliveries %}
-                        <tr>
-                            <td>
-                                <i class="bi bi-person-circle text-primary me-2"></i>
-                                {{ delivery.student.display_name }}
-                            </td>
-                            <td>
-                                {{ delivery.date }} {{ delivery.delivery_time }}
-                                {% if delivery.is_late %}
-                                    <br><span class="badge bg-danger">Entrega tardía</span>
-                                {% else %}
-                                    <br><span class="badge bg-success">A tiempo</span>
-                                {% endif %}
-                            </td>
-                            <td>
-                                {% if delivery.is_graded %}
-                                    <span class="badge bg-success">
-                                        <i class="bi bi-check-circle"></i> Calificada
-                                    </span>
-                                {% else %}
-                                    <span class="badge bg-warning">
-                                        <i class="bi bi-clock"></i> Pendiente
-                                    </span>
-                                {% endif %}
-                            </td>
-                            <td>
-                                {% if delivery.grade %}
-                                    <strong>{{ delivery.grade|floatformat:2 }}/10</strong>
-                                    <br><small class="text-muted">{{ delivery.grade_status }}</small>
-                                {% else %}
-                                    <span class="text-muted">Sin calificar</span>
-                                {% endif %}
-                            </td>
-                            <td>
-                                <div class="btn-group btn-group-sm">
-                                    {% if delivery.has_attachment %}
-                                        <a href="{% url 'download_delivery_attachment' delivery.id %}" target="_blank" 
-                                           class="btn btn-outline-primary" title="Descargar archivo">
-                                            <i class="bi bi-download"></i>
-                                        </a>
-                                    {% elif delivery.file_url %}
-                                        <a href="{{ delivery.file_url }}" target="_blank" 
-                                           class="btn btn-outline-primary" title="Ver archivo">
-                                            <i class="bi bi-eye"></i>
-                                        </a>
-                                    {% endif %}
-                                    
-                                    <a href="{% url 'teacher_delivery_grade' delivery.id %}" 
-                                       class="btn {% if delivery.is_graded %}btn-success{% else %}btn-warning{% endif %}" 
-                                       title="{% if delivery.is_graded %}Ver/Editar calificación{% else %}Calificar entrega{% endif %}">
-                                        <i class="bi bi-{% if delivery.is_graded %}eye{% else %}star{% endif %}"></i>
-                                        {% if delivery.is_graded %}Ver{% else %}Calificar{% endif %}
-                                    </a>
-                                </div>
-                            </td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
+<!-- Modal de confirmación para eliminar tarea -->
+<div class="modal fade" id="deleteTaskModal" tabindex="-1" aria-labelledby="deleteTaskModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title" id="deleteTaskModalLabel">
+                    <i class="bi bi-exclamation-triangle-fill"></i> Confirmar Eliminación de Tarea
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
-        {% else %}
-            <div class="text-center py-4">
-                <i class="bi bi-inbox display-4 text-muted"></i>
-                <h4 class="text-muted mt-3">No hay entregas aún</h4>
-                <p class="text-muted">Los estudiantes aún no han comenzado a entregar esta tarea</p>
+            <div class="modal-body">
+                <div class="text-center mb-3">
+                    <i class="bi bi-exclamation-triangle text-danger" style="font-size: 3rem;"></i>
+                </div>
+                <h6 class="text-center mb-3">¿Estás seguro de que deseas eliminar esta tarea?</h6>
+                
+                <div class="alert alert-warning">
+                    <h6 class="alert-heading">
+                        <i class="bi bi-journal-text"></i> <span id="taskTheme"></span>
+                    </h6>
+                    <p class="mb-1"><strong>Clase:</strong> <span id="taskClass"></span></p>
+                    <p class="mb-1"><strong>Curso:</strong> <span id="taskCourse"></span></p>
+                    <p class="mb-1"><strong>Entregas realizadas:</strong> <span id="taskDeliveries"></span></p>
+                    <p class="mb-0"><strong>Total estudiantes:</strong> <span id="taskStudents"></span></p>
+                </div>
+                
+                <div class="alert alert-danger">
+                    <h6 class="alert-heading">
+                        <i class="bi bi-exclamation-triangle"></i> ¡Atención!
+                    </h6>
+                    <p class="mb-0">Esta acción eliminará permanentemente la tarea y todos sus datos asociados. Esta acción no se puede deshacer.</p>
+                </div>
             </div>
-        {% endif %}
-        
-        <!-- Estudiantes que no han entregado -->
-        {% if students_not_delivered %}
-            <hr>
-            <h6><i class="bi bi-exclamation-triangle text-warning"></i> Estudiantes sin entregar ({{ students_not_delivered.count }}):</h6>
-            <div class="row">
-                {% for student in students_not_delivered %}
-                    <div class="col-md-4 mb-2">
-                        <div class="alert alert-warning py-2 mb-0">
-                            <i class="bi bi-person"></i> {{ student.display_name }}
-                        </div>
-                    </div>
-                {% endfor %}
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="bi bi-x-circle"></i> Cancelar
+                </button>
+                <form id="deleteTaskForm" method="post" style="display: inline;">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-danger">
+                        <i class="bi bi-trash"></i> Sí, Eliminar Tarea
+                    </button>
+                </form>
             </div>
-        {% endif %}
+        </div>
     </div>
 </div>
+
+<script>
+function showDeleteTaskConfirmation(taskId, taskTheme, classIdentify, classCourse, totalDeliveries, totalStudents) {
+    document.getElementById('taskTheme').textContent = taskTheme;
+    document.getElementById('taskClass').textContent = classIdentify;
+    document.getElementById('taskCourse').textContent = classCourse;
+    document.getElementById('taskDeliveries').textContent = totalDeliveries;
+    document.getElementById('taskStudents').textContent = totalStudents;
+
+    // Actualizar la acción del formulario
+    document.getElementById('deleteTaskForm').action = "{% url 'task_delete' 0 %}".replace('0', taskId);
+
+    // Mostrar el modal
+    var modal = new bootstrap.Modal(document.getElementById('deleteTaskModal'));
+    modal.show();
+}
+</script>
 {% endblock %}

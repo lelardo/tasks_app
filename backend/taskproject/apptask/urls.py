@@ -23,6 +23,8 @@ urlpatterns = [
     path('admin-panel/classes/<int:class_id>/', views.admin_class_detail, name='admin_class_detail'),
     # === URLs DE ADMINISTRACIÓN ===
     path('admin-panel/class/create/', views.admin_class_create, name='admin_class_create'),
+    path('admin-panel/classes/edit/<int:class_id>/', views.admin_class_edit, name='admin_class_edit'),
+    path('admin-panel/classes/delete/<int:class_id>/', views.admin_class_delete, name='admin_class_delete'),
     path('admin-panel/users/edit/<int:user_id>/', views.admin_user_edit, name='admin_user_edit'),
     #path('admin-panel/classes/create/', views.admin_class_create, name='admin_class_create'),
     
@@ -50,6 +52,7 @@ urlpatterns = [
     path('student/grades/class/<int:class_id>/', views.student_class_grades, name='student_class_grades'),
     path('student/grades/class/<int:class_id>/report/', views.student_grade_report, name='student_grade_report'),
     # === URLs PARA TAREAS ===
+    path('tasks/<int:task_id>/', views.task_detail, name='task_detail'),  # ← AGREGAR ESTA LÍNEA
     path('tasks/<int:task_id>/edit/', views.task_edit, name='task_edit'),   
     path('tasks/<int:task_id>/delete/', views.task_delete, name='task_delete'),
     path('tasks/create/', views.create_task, name='create_task'),

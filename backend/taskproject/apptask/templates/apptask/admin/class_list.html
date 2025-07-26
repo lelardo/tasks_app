@@ -7,8 +7,8 @@
         <i class="bi bi-book text-success"></i> Gestión de Clases
     </h1>
     <a href="{% url 'admin_class_create' %}" class="btn btn-success">
-                    <i class="bi bi-plus-circle"></i> Nueva Clase
-                </a>
+        <i class="bi bi-plus-circle"></i> Nueva Clase
+    </a>
 </div>
 
 <!-- Estadísticas corregidas -->
@@ -108,15 +108,11 @@
                                     <a href="{% url 'admin_class_detail' class.id %}" class="btn btn-outline-info" title="Ver detalles">
                                         <i class="bi bi-eye"></i>
                                     </a>
-                                    </button>
-                                    <button type="button" class="btn btn-outline-warning"
-                                            onclick="alert('Función de editar clase en desarrollo')" 
-                                            title="Editar clase">
+                                    <a href="{% url 'admin_class_edit' class.id %}" class="btn btn-outline-warning" title="Editar clase">
                                         <i class="bi bi-pencil"></i>
-                                    </button>
-                                    <button type="button" class="btn btn-outline-danger" 
-                                            onclick="alert('Función de eliminar clase en desarrollo')" 
-                                            title="Eliminar clase">
+                                    </a>
+                                    <button type="button" class="btn btn-outline-danger" title="Eliminar clase" 
+                                            onclick="showDeleteConfirmation('{{ class.id }}', '{{ class.identify }}', '{{ class.course }}', {{ class.student_list.count }}, {{ class.tasks.count }})">
                                         <i class="bi bi-trash"></i>
                                     </button>
                                 </div>
@@ -131,11 +127,58 @@
                 <i class="bi bi-book fs-1 text-muted"></i>
                 <h5 class="mt-3 text-muted">No hay clases creadas</h5>
                 <p class="text-muted">Las clases aparecerán aquí cuando se creen</p>
-                <button class="btn btn-success" onclick="alert('Función crear clase en desarrollo')">
+                <a href="{% url 'admin_class_create' %}" class="btn btn-success">
                     <i class="bi bi-plus-circle"></i> Crear Primera Clase
-                </button>
+                </a>
             </div>
         {% endif %}
+    </div>
+</div>
+
+<!-- Modal de confirmación para eliminar clase -->
+<div class="modal fade" id="deleteClassModal" tabindex="-1" aria-labelledby="deleteClassModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title" id="deleteClassModalLabel">
+                    <i class="bi bi-exclamation-triangle-fill"></i> Confirmar Eliminación
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="text-center mb-3">
+                    <i class="bi bi-exclamation-triangle text-danger" style="font-size: 3rem;"></i>
+                </div>
+                <h6 class="text-center mb-3">¿Estás seguro de que deseas eliminar esta clase?</h6>
+                
+                <div class="alert alert-warning">
+                    <h6 class="alert-heading">
+                        <i class="bi bi-book"></i> <span id="classIdentifier"></span>
+                    </h6>
+                    <p class="mb-1"><strong>Curso:</strong> <span id="classCourse"></span></p>
+                    <p class="mb-1"><strong>Estudiantes:</strong> <span id="classStudents"></span></p>
+                    <p class="mb-0"><strong>Tareas:</strong> <span id="classTasks"></span></p>
+                </div>
+                
+                <div class="alert alert-danger">
+                    <h6 class="alert-heading">
+                        <i class="bi bi-exclamation-triangle"></i> ¡Atención!
+                    </h6>
+                    <p class="mb-0">Esta acción eliminará permanentemente la clase y todos sus datos asociados. Esta acción no se puede deshacer.</p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="bi bi-x-circle"></i> Cancelar
+                </button>
+                <form id="deleteClassForm" method="post" style="display: inline;">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-danger">
+                        <i class="bi bi-trash"></i> Sí, Eliminar Clase
+                    </button>
+                </form>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -262,27 +305,34 @@
 </div>
 {% endfor %}
 
-<div class="col-md-12">
-    <div class="card">
-        <div class="card-body">
-            <h5>Clases</h5>
-            <ul class="list-group">
-            {% for school_class in classes %}
-                <li class="list-group-item d-flex justify-content-between align-items-center">
-                    <span>{{ school_class.identify }} - {{ school_class.course }}</span>
-                    <a href="{% url 'teacher_class_detail' school_class.id %}" class="btn btn-outline-primary btn-sm">Ver detalle</a>
-                </li>
-            {% empty %}
-                <li class="list-group-item">No hay clases registradas.</li>
-            {% endfor %}
-            </ul>
-        </div>
-    </div>
-</div>
-
 <script>
-    function confirmDelete(classId, className) {
-        alert('Función de eliminar clase en desarrollo');
+function showDeleteConfirmation(classId, classIdentifier, classCourse, studentCount, taskCount) {
+    // Actualizar el contenido del modal
+    document.getElementById('classIdentifier').textContent = classIdentifier;
+    document.getElementById('classCourse').textContent = classCourse;
+    document.getElementById('classStudents').textContent = studentCount + ' estudiante' + (studentCount !== 1 ? 's' : '');
+    document.getElementById('classTasks').textContent = taskCount + ' tarea' + (taskCount !== 1 ? 's' : '');
+    
+    // Actualizar la acción del formulario
+    document.getElementById('deleteClassForm').action = "{% url 'admin_class_delete' 0 %}".replace('0', classId);
+    
+    // Mostrar el modal
+    var modal = new bootstrap.Modal(document.getElementById('deleteClassModal'));
+    modal.show();
+}
+
+// Función para cerrar el modal después de eliminar
+function closeDeleteModal() {
+    var modal = bootstrap.Modal.getInstance(document.getElementById('deleteClassModal'));
+    if (modal) {
+        modal.hide();
     }
+}
+
+// Escuchar el envío del formulario para cerrar el modal
+document.getElementById('deleteClassForm').addEventListener('submit', function() {
+    // El modal se cerrará automáticamente cuando se envíe el formulario
+    // y la página se recargará con el resultado
+});
 </script>
 {% endblock %}
