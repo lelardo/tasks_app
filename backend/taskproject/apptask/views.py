@@ -2632,7 +2632,17 @@ def admin_user_edit(request, user_id):
     # Obtener las clases asignadas y todas las clases disponibles
     assigned_classes = user.taught_classes.all() if user.role == 'teacher' else []
     all_classes = SchoolClass.objects.all()
-
+    
+    # ← AGREGAR ESTE RETURN FALTANTE
+    return render(request, 'apptask/admin/user_form.html', {
+        'role_choices': User.ROLE_CHOICES,
+        'form_data': form_data,
+        'user': user,
+        'title': f'Editar Usuario: {user.email}',
+        'is_edit': True,
+        'assigned_classes': assigned_classes,
+        'all_classes': all_classes
+    })
 # === VISTA PARA DESCARGAR ARCHIVOS DE TAREAS ===
 @login_required
 def download_task_attachment(request, task_id):
