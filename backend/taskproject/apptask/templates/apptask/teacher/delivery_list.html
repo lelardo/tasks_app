@@ -46,6 +46,9 @@
                                 <td>
                                     <strong>{{ delivery.student.name }}</strong><br>
                                     <small class="text-muted">{{ delivery.student.email }}</small>
+                                    {% if delivery.is_group_delivery and delivery.group %}
+                                        <br><span class="badge bg-warning">Grupo: {{ delivery.group.name }}</span>
+                                    {% endif %}
                                 </td>
                                 <td>
                                     {{ delivery.date }}<br>

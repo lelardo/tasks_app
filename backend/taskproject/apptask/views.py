@@ -11,7 +11,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.http import JsonResponse
-from .models import Task, Delivery, SchoolClass, User
+from .models import Task, Delivery, SchoolClass, User, Group
 from .forms import TaskForm, DeliveryForm, GradeDeliveryForm
 from django import forms
 from django.db.models import Count, Avg, Q, F
@@ -186,7 +186,6 @@ def create_task(request):
     else:
         form = TaskForm(user=request.user)
     
-    # Check if the teacher has assigned classes for template compatibility
     assigned_classes = request.user.taught_classes.all()
     if not assigned_classes:
         messages.error(request, 'No tienes clases asignadas. Contacta al administrador.')
@@ -213,11 +212,26 @@ def teacher_dashboard(request):
     ).select_related('school_class').order_by('-created_at')[:5]
     
     # Obtener entregas para revisar con datos relacionados precargados
+    # Excluir entregas grupales que ya han sido calificadas (convertidas en individuales)
     teacher_deliveries = Delivery.objects.filter(
         task__school_class__teacher=teacher
     ).select_related(
         'task', 'task__school_class', 'student'
     ).order_by('-date')[:10]
+    
+    # Filtrar para no mostrar entregas grupales duplicadas
+    # Si una entrega grupal ya fue calificada, no mostrarla en el dashboard
+    filtered_deliveries = []
+    for delivery in teacher_deliveries:
+        if delivery.is_group_delivery:
+            # Solo mostrar entregas grupales que NO han sido calificadas
+            if not delivery.grade:
+                filtered_deliveries.append(delivery)
+        else:
+            # Mostrar todas las entregas individuales
+            filtered_deliveries.append(delivery)
+    
+    teacher_deliveries = filtered_deliveries[:10]
     
     # Optimizar estadísticas usando una sola consulta por tabla
     # Usar agregación para evitar múltiples consultas
@@ -230,14 +244,36 @@ def teacher_dashboard(request):
         total_tasks=Count('id')
     )
     
-    # Estadísticas de entregas
-    delivery_stats = Delivery.objects.filter(
-        task__school_class__teacher=teacher
+    # Estadísticas de entregas (excluyendo entregas grupales calificadas duplicadas)
+    # Para entregas grupales, solo contar una vez por grupo
+    from django.db.models import Count, Q
+    
+    # Entregas individuales
+    individual_stats = Delivery.objects.filter(
+        task__school_class__teacher=teacher,
+        is_group_delivery=False
     ).aggregate(
         total_deliveries=Count('id'),
         pending_deliveries=Count('id', filter=Q(feedback='')),
         graded_deliveries=Count('id', filter=~Q(feedback=''))
     )
+    
+    # Entregas grupales (solo contar una por grupo)
+    group_stats = Delivery.objects.filter(
+        task__school_class__teacher=teacher,
+        is_group_delivery=True
+    ).aggregate(
+        total_deliveries=Count('id'),
+        pending_deliveries=Count('id', filter=Q(feedback='')),
+        graded_deliveries=Count('id', filter=~Q(feedback=''))
+    )
+    
+    # Combinar estadísticas
+    delivery_stats = {
+        'total_deliveries': (individual_stats['total_deliveries'] or 0) + (group_stats['total_deliveries'] or 0),
+        'pending_deliveries': (individual_stats['pending_deliveries'] or 0) + (group_stats['pending_deliveries'] or 0),
+        'graded_deliveries': (individual_stats['graded_deliveries'] or 0) + (group_stats['graded_deliveries'] or 0),
+    }
     
     context = {
         'my_classes': my_classes,
@@ -271,9 +307,19 @@ def student_dashboard(request):
         student=student
     ).select_related('task', 'task__school_class').order_by('-date')
     
-    # Tareas pendientes optimizado - usar EXISTS para mejor rendimiento
-    delivered_task_ids = list(my_deliveries.values_list('task_id', flat=True))
-    pending_tasks = available_tasks.exclude(id__in=delivered_task_ids) if delivered_task_ids else available_tasks
+    # Obtener entregas grupales donde el estudiante es miembro del grupo
+    group_deliveries = Delivery.objects.filter(
+        is_group_delivery=True,
+        group__students=student
+    ).select_related('task', 'task__school_class').order_by('-date')
+    
+    # Combinar IDs de tareas entregadas (individuales y grupales)
+    individual_delivered_ids = list(my_deliveries.values_list('task_id', flat=True))
+    group_delivered_ids = list(group_deliveries.values_list('task_id', flat=True))
+    all_delivered_ids = individual_delivered_ids + group_delivered_ids
+    
+    # Tareas pendientes optimizado - excluir tanto entregas individuales como grupales
+    pending_tasks = available_tasks.exclude(id__in=all_delivered_ids) if all_delivered_ids else available_tasks
     
     # Estadísticas optimizadas usando agregación y conteo eficiente
     from django.db.models import Count, Q
@@ -282,14 +328,21 @@ def student_dashboard(request):
     total_classes = my_classes.count()
     total_available_tasks = available_tasks.count()
     
-    # Estadísticas de entregas en una sola consulta
-    delivery_stats = my_deliveries.aggregate(
+    # Estadísticas de entregas individuales
+    individual_stats = my_deliveries.aggregate(
         total_deliveries=Count('id'),
         graded_count=Count('id', filter=Q(grade__isnull=False))
     )
     
-    total_deliveries = delivery_stats['total_deliveries'] or 0
-    graded_count = delivery_stats['graded_count'] or 0
+    # Estadísticas de entregas grupales
+    group_stats = group_deliveries.aggregate(
+        total_deliveries=Count('id'),
+        graded_count=Count('id', filter=Q(grade__isnull=False))
+    )
+    
+    # Combinar estadísticas
+    total_deliveries = (individual_stats['total_deliveries'] or 0) + (group_stats['total_deliveries'] or 0)
+    graded_count = (individual_stats['graded_count'] or 0) + (group_stats['graded_count'] or 0)
     pending_count = pending_tasks.count()
     
     # Calcular porcentaje de completado (evitar división por cero)
@@ -304,11 +357,15 @@ def student_dashboard(request):
         is_read=False
     ).order_by('-created_at')[:5]  # Últimas 5 notificaciones no leídas
     
+    # Combinar entregas individuales y grupales para mostrar en el dashboard
+    all_deliveries = list(my_deliveries) + list(group_deliveries)
+    all_deliveries.sort(key=lambda x: x.date, reverse=True)  # Ordenar por fecha
+    
     context = {
         'my_classes': my_classes,
         'available_tasks': available_tasks[:5],  # Últimas 5 tareas
         'pending_tasks': pending_tasks[:5],      # 5 tareas pendientes
-        'my_deliveries': my_deliveries[:5],      # Últimas 5 entregas
+        'my_deliveries': all_deliveries[:5],     # Últimas 5 entregas (individuales y grupales)
         'unread_notifications': unread_notifications,  # Notificaciones no leídas
         'total_classes': total_classes,
         'total_available_tasks': total_available_tasks,
@@ -373,12 +430,25 @@ def student_grades(request):
         # Obtener todas las tareas de esta clase
         class_tasks = Task.objects.filter(school_class=school_class)
         
-        # Obtener entregas calificadas del estudiante en esta clase
-        graded_deliveries = Delivery.objects.filter(
+        # Obtener entregas calificadas del estudiante en esta clase (individuales y grupales)
+        individual_graded_deliveries = Delivery.objects.filter(
             student=student,
+            task__school_class=school_class,
+            grade__isnull=False,
+            is_group_delivery=False
+        ).select_related('task').order_by('-date')
+        
+        # Obtener entregas grupales calificadas donde el estudiante es miembro del grupo
+        group_graded_deliveries = Delivery.objects.filter(
+            is_group_delivery=True,
+            group__students=student,
             task__school_class=school_class,
             grade__isnull=False
         ).select_related('task').order_by('-date')
+        
+        # Combinar entregas individuales y grupales
+        graded_deliveries = list(individual_graded_deliveries) + list(group_graded_deliveries)
+        graded_deliveries.sort(key=lambda x: x.date, reverse=True)
         
         # Calcular estadísticas
         total_tasks = class_tasks.count()
@@ -411,9 +481,24 @@ def student_grades(request):
             'poor_count': poor_count,
         })
     
-    # Estadísticas generales del estudiante
-    total_deliveries = Delivery.objects.filter(student=student, grade__isnull=False)
-    overall_avg = total_deliveries.aggregate(avg=Avg('grade'))['avg'] or 0
+    # Estadísticas generales del estudiante (individuales y grupales)
+    individual_total_deliveries = Delivery.objects.filter(
+        student=student, 
+        grade__isnull=False,
+        is_group_delivery=False
+    )
+    group_total_deliveries = Delivery.objects.filter(
+        is_group_delivery=True,
+        group__students=student,
+        grade__isnull=False
+    )
+    
+    # Combinar para calcular promedio general
+    all_graded_deliveries = list(individual_total_deliveries) + list(group_total_deliveries)
+    overall_avg = 0
+    if all_graded_deliveries:
+        total_grade = sum(delivery.grade for delivery in all_graded_deliveries)
+        overall_avg = total_grade / len(all_graded_deliveries)
     
     context = {
         'classes_with_grades': classes_with_grades,
@@ -439,10 +524,22 @@ def student_class_grades(request, class_id):
     # Obtener todas las tareas de esta clase
     class_tasks = Task.objects.filter(school_class=school_class).order_by('-created_at')
     
-    # Obtener entregas del estudiante en esta clase
+    # Obtener entregas del estudiante en esta clase (individuales y grupales)
     deliveries_dict = {}
+    
+    # Entregas individuales
     for delivery in Delivery.objects.filter(student=student, task__school_class=school_class):
         deliveries_dict[delivery.task.id] = delivery
+    
+    # Entregas grupales donde el estudiante es miembro del grupo
+    for delivery in Delivery.objects.filter(
+        is_group_delivery=True,
+        group__students=student,
+        task__school_class=school_class
+    ):
+        # Solo agregar si no hay entrega individual para esta tarea
+        if delivery.task.id not in deliveries_dict:
+            deliveries_dict[delivery.task.id] = delivery
     
     # Crear lista con tareas y sus respectivas entregas
     tasks_with_deliveries = []
@@ -659,28 +756,70 @@ def student_task_detail(request, task_id):
         school_class__student_list=student
     )
     
-    # Verificar si el estudiante ya entregó esta tarea
-    try:
-        my_delivery = Delivery.objects.get(task=task, student=student)
-    except Delivery.DoesNotExist:
-        my_delivery = None
+    # Para tareas grupales, buscar la entrega del grupo
+    if task.is_group_task:
+        try:
+            student_group = Group.objects.get(
+                school_class=task.school_class,
+                students=student
+            )
+            my_delivery = Delivery.objects.filter(task=task, group=student_group).first()
+        except Group.DoesNotExist:
+            my_delivery = None
+    else:
+        # Para tareas individuales, buscar la entrega del estudiante
+        try:
+            my_delivery = Delivery.objects.get(task=task, student=student)
+        except Delivery.DoesNotExist:
+            my_delivery = None
     
     # Obtener todas las entregas (solo para ver estadísticas)
     all_deliveries = task.delivery_list.all()
+    
+    # Verificar si puede entregar
+    can_deliver = False
+    if not task.is_overdue:
+        if task.is_group_task:
+            # Para tareas grupales, verificar si no hay entrega del grupo
+            try:
+                student_group = Group.objects.get(
+                    school_class=task.school_class,
+                    students=student
+                )
+                can_deliver = not Delivery.objects.filter(task=task, group=student_group).exists()
+            except Group.DoesNotExist:
+                can_deliver = False
+        else:
+            # Para tareas individuales, verificar si no hay entrega del estudiante
+            can_deliver = not my_delivery
+    
+    # Obtener información del grupo si es tarea grupal
+    group_info = None
+    if task.is_group_task:
+        try:
+            student_group = Group.objects.get(
+                school_class=task.school_class,
+                students=student
+            )
+            group_info = {
+                'name': student_group.name,
+                'members': student_group.students.all()
+            }
+        except Group.DoesNotExist:
+            pass
     
     context = {
         'task': task,
         'my_delivery': my_delivery,
         'total_deliveries': all_deliveries.count(),
         'total_students': task.school_class.student_list.count(),
-        'can_deliver': not my_delivery and not task.is_overdue,
-        'can_edit': my_delivery and not task.is_overdue,  # Nueva variable
+        'can_deliver': can_deliver,
+        'can_edit': my_delivery and not task.is_overdue,
+        'group_info': group_info,
     }
     
     return render(request, 'apptask/student/task_detail.html', context)
 
-@login_required
-@user_passes_test(student_required)
 @login_required
 @user_passes_test(student_required)
 def student_delivery_create(request, task_id):
@@ -694,15 +833,33 @@ def student_delivery_create(request, task_id):
         school_class__student_list=student
     )
     
-    # Verificar que no haya entregado ya
-    if Delivery.objects.filter(task=task, student=student).exists():
-        messages.error(request, 'Ya has entregado esta tarea.')
-        return redirect('student_task_detail', task_id=task.id)
-    
     # Verificar que la tarea no esté vencida
     if task.is_overdue:
         messages.error(request, 'Esta tarea ya está vencida.')
         return redirect('student_task_detail', task_id=task.id)
+    
+    # Para tareas grupales, verificar si ya existe una entrega del grupo
+    if task.is_group_task:
+        # Buscar el grupo del estudiante en esta clase
+        try:
+            student_group = Group.objects.get(
+                school_class=task.school_class,
+                students=student
+            )
+            
+            # Verificar si ya existe una entrega para este grupo en esta tarea
+            if Delivery.objects.filter(task=task, group=student_group).exists():
+                messages.error(request, 'Ya se ha entregado esta tarea grupal por tu grupo.')
+                return redirect('student_task_detail', task_id=task.id)
+                
+        except Group.DoesNotExist:
+            messages.error(request, 'No perteneces a ningún grupo para esta tarea grupal.')
+            return redirect('student_task_detail', task_id=task.id)
+    else:
+        # Para tareas individuales, verificar que no haya entregado ya
+        if Delivery.objects.filter(task=task, student=student).exists():
+            messages.error(request, 'Ya has entregado esta tarea.')
+            return redirect('student_task_detail', task_id=task.id)
     
     if request.method == 'POST':
         form = DeliveryForm(request.POST, request.FILES)
@@ -713,17 +870,45 @@ def student_delivery_create(request, task_id):
             delivery.revisor = task.school_class.teacher
             delivery.date = timezone.now().date()
             delivery.delivery_time = timezone.now().time()
+            
+            # Para tareas grupales, marcar como entrega grupal
+            if task.is_group_task:
+                delivery.is_group_delivery = True
+                delivery.group = Group.objects.get(
+                    school_class=task.school_class,
+                    students=student
+                )
+            
             delivery.save()
             
-            messages.success(request, f'Tarea "{task.theme}" entregada exitosamente.')
+            if task.is_group_task:
+                messages.success(request, f'Tarea grupal "{task.theme}" entregada exitosamente en nombre de tu grupo.')
+            else:
+                messages.success(request, f'Tarea "{task.theme}" entregada exitosamente.')
             return redirect('student_task_detail', task_id=task.id)
     else:
         form = DeliveryForm()
     
+    # Obtener información del grupo si es tarea grupal
+    group_info = None
+    if task.is_group_task:
+        try:
+            student_group = Group.objects.get(
+                school_class=task.school_class,
+                students=student
+            )
+            group_info = {
+                'name': student_group.name,
+                'members': student_group.students.all()
+            }
+        except Group.DoesNotExist:
+            pass
+    
     return render(request, 'apptask/student/delivery_form.html', {
         'task': task,
         'form': form,
-        'title': 'Entregar Tarea'
+        'title': 'Entregar Tarea',
+        'group_info': group_info
     })
 
 @login_required
@@ -837,33 +1022,94 @@ def teacher_delivery_grade(request, delivery_id):
             
             delivery = form.save()
             
-            # Crear notificación si el switch está marcado
-            send_notification = form.cleaned_data.get('send_notification', False)
-            if send_notification:
-                from .models import Notification
+            # Para entregas grupales, aplicar la calificación a todos los miembros del grupo
+            if delivery.is_group_delivery and delivery.group:
+                # Obtener todos los miembros del grupo
+                group_members = delivery.group.students.all()
                 
-                if was_previously_graded:
-                    message = f"Tu calificación para '{delivery.task.theme}' ha sido modificada. Nueva calificación: {delivery.grade}/10"
-                else:
-                    message = f"Tu entrega para '{delivery.task.theme}' ha sido calificada. Calificación: {delivery.grade}/10"
+                # Crear o actualizar calificaciones para todos los miembros del grupo
+                for member in group_members:
+                    # Buscar si ya existe una entrega para este estudiante
+                    member_delivery, created = Delivery.objects.get_or_create(
+                        task=delivery.task,
+                        student=member,
+                        defaults={
+                            'revisor': teacher,
+                            'date': delivery.date,
+                            'delivery_time': delivery.delivery_time,
+                            'grade': delivery.grade,
+                            'feedback': delivery.feedback,
+                            'file_corrected_url': delivery.file_corrected_url,
+                            'corrected_attachment': delivery.corrected_attachment,
+                            'is_group_delivery': True,
+                            'group': delivery.group
+                        }
+                    )
+                    
+                    # Si la entrega ya existía, actualizar la calificación
+                    if not created:
+                        member_delivery.grade = delivery.grade
+                        member_delivery.feedback = delivery.feedback
+                        member_delivery.file_corrected_url = delivery.file_corrected_url
+                        member_delivery.corrected_attachment = delivery.corrected_attachment
+                        member_delivery.save()
+                    
+                    # Crear notificación para cada miembro del grupo si está marcado
+                    send_notification = form.cleaned_data.get('send_notification', False)
+                    if send_notification:
+                        from .models import Notification
+                        
+                        if was_previously_graded:
+                            message = f"Tu calificación grupal para '{delivery.task.theme}' ha sido modificada. Nueva calificación: {delivery.grade}/10"
+                        else:
+                            message = f"Tu entrega grupal para '{delivery.task.theme}' ha sido calificada. Calificación: {delivery.grade}/10"
+                        
+                        # Crear la notificación
+                        Notification.objects.create(
+                            student=member,
+                            delivery=member_delivery,
+                            message=message
+                        )
                 
-                # Crear la notificación
-                Notification.objects.create(
-                    student=delivery.student,
-                    delivery=delivery,
-                    message=message
-                )
+                messages.success(request, f'Entrega grupal calificada exitosamente. Calificación aplicada a todos los miembros del grupo.')
+            else:
+                # Para entregas individuales, crear notificación solo para el estudiante
+                send_notification = form.cleaned_data.get('send_notification', False)
+                if send_notification:
+                    from .models import Notification
+                    
+                    if was_previously_graded:
+                        message = f"Tu calificación para '{delivery.task.theme}' ha sido modificada. Nueva calificación: {delivery.grade}/10"
+                    else:
+                        message = f"Tu entrega para '{delivery.task.theme}' ha sido calificada. Calificación: {delivery.grade}/10"
+                    
+                    # Crear la notificación
+                    Notification.objects.create(
+                        student=delivery.student,
+                        delivery=delivery,
+                        message=message
+                    )
+                
+                messages.success(request, f'Entrega de {delivery.student.display_name} calificada exitosamente.')
             
-            messages.success(request, f'Entrega de {delivery.student.display_name} calificada exitosamente.')
             return redirect('teacher_task_detail', task_id=delivery.task.id)
     else:
         form = GradeDeliveryForm(instance=delivery)
+    
+    # Obtener información del grupo si es entrega grupal
+    group_info = None
+    if delivery.is_group_delivery and delivery.group:
+        group_info = {
+            'name': delivery.group.name,
+            'members': delivery.group.students.all()
+        }
     
     return render(request, 'apptask/teacher/grade_delivery.html', {
         'form': form,
         'delivery': delivery,
         'title': 'Calificar Entrega',
-        'is_edit': bool(delivery.feedback)
+        'is_edit': bool(delivery.feedback),
+        'group_info': group_info
     })
 
 # === GESTIÓN DE USUARIOS (SOLO ADMIN) ===
@@ -2920,16 +3166,47 @@ def teacher_reports(request):
         for student in students:
             row = {'student': student, 'entregas': []}
             for task in tasks:
-                entrega = deliveries.filter(student=student, task=task).first()
+                # Buscar entrega individual
+                entrega = deliveries.filter(student=student, task=task, is_group_delivery=False).first()
+                
+                # Si no hay entrega individual, buscar entrega grupal
+                if not entrega:
+                    entrega = deliveries.filter(
+                        is_group_delivery=True,
+                        group__students=student,
+                        task=task
+                    ).first()
+                
                 if entrega:
-                    row['entregas'].append(entrega.grade if entrega.grade is not None else 'Sin calificar')
+                    grade_display = entrega.grade if entrega.grade is not None else 'Sin calificar'
+                    # Agregar indicador de entrega grupal
+                    if entrega.is_group_delivery:
+                        grade_display = f"{grade_display} (Grupal)"
+                    row['entregas'].append(grade_display)
                 else:
                     row['entregas'].append('No entregó')
             entrega_matrix.append(row)
-        # Promedios por estudiante
+        # Promedios por estudiante (incluyendo entregas grupales)
         for student in students:
-            student_deliveries = deliveries.filter(student=student, grade__isnull=False)
-            avg = student_deliveries.aggregate(avg_grade=Avg('grade'))['avg_grade']
+            # Entregas individuales calificadas
+            individual_deliveries = deliveries.filter(
+                student=student, 
+                grade__isnull=False,
+                is_group_delivery=False
+            )
+            
+            # Entregas grupales calificadas donde el estudiante es miembro
+            group_deliveries = deliveries.filter(
+                is_group_delivery=True,
+                group__students=student,
+                grade__isnull=False
+            )
+            
+            # Combinar todas las calificaciones
+            all_grades = list(individual_deliveries.values_list('grade', flat=True)) + \
+                        list(group_deliveries.values_list('grade', flat=True))
+            
+            avg = sum(all_grades) / len(all_grades) if all_grades else None
             averages.append({
                 'student': student,
                 'average': avg
@@ -2972,4 +3249,126 @@ def teacher_reports(request):
         'students': students,
     }
     return render(request, 'apptask/teacher/reports.html', context)
+
+# === VISTAS PARA GESTIÓN DE GRUPOS ===
+@login_required
+@user_passes_test(teacher_required)
+def teacher_group_list(request, class_id):
+    """Lista de grupos de una clase específica"""
+    teacher = request.user
+    school_class = get_object_or_404(SchoolClass, id=class_id, teacher=teacher)
+    groups = school_class.groups.all().prefetch_related('students')
+    
+    context = {
+        'school_class': school_class,
+        'groups': groups,
+    }
+    return render(request, 'apptask/teacher/group_list.html', context)
+
+@login_required
+@user_passes_test(teacher_required)
+def teacher_group_create(request, class_id):
+    """Crear un nuevo grupo en una clase"""
+    teacher = request.user
+    school_class = get_object_or_404(SchoolClass, id=class_id, teacher=teacher)
+    
+    if request.method == 'POST':
+        name = request.POST.get('name')
+        student_ids = request.POST.getlist('students')
+        
+        if name:
+            group = Group.objects.create(
+                name=name,
+                school_class=school_class
+            )
+            if student_ids:
+                students = User.objects.filter(id__in=student_ids, role='student')
+                group.students.set(students)
+            
+            messages.success(request, f'Grupo "{name}" creado exitosamente.')
+            return redirect('teacher_group_list', class_id=class_id)
+        else:
+            messages.error(request, 'El nombre del grupo es obligatorio.')
+    
+    # Obtener estudiantes que no están en ningún grupo de esta clase
+    existing_group_students = set()
+    for group in school_class.groups.all():
+        existing_group_students.update(group.students.values_list('id', flat=True))
+    
+    available_students = school_class.student_list.exclude(id__in=existing_group_students)
+    
+    context = {
+        'school_class': school_class,
+        'available_students': available_students,
+    }
+    return render(request, 'apptask/teacher/group_form.html', context)
+
+@login_required
+@user_passes_test(teacher_required)
+def teacher_group_edit(request, group_id):
+    """Editar un grupo existente"""
+    teacher = request.user
+    group = get_object_or_404(Group, id=group_id, school_class__teacher=teacher)
+    
+    if request.method == 'POST':
+        name = request.POST.get('name')
+        student_ids = request.POST.getlist('students')
+        
+        if name:
+            group.name = name
+            group.save()
+            
+            if student_ids:
+                students = User.objects.filter(id__in=student_ids, role='student')
+                group.students.set(students)
+            else:
+                group.students.clear()
+            
+            messages.success(request, f'Grupo "{name}" actualizado exitosamente.')
+            return redirect('teacher_group_list', class_id=group.school_class.id)
+        else:
+            messages.error(request, 'El nombre del grupo es obligatorio.')
+    
+    # Obtener estudiantes que no están en ningún grupo de esta clase (excepto este)
+    other_group_students = set()
+    for other_group in group.school_class.groups.exclude(id=group.id):
+        other_group_students.update(other_group.students.values_list('id', flat=True))
+    
+    available_students = group.school_class.student_list.exclude(id__in=other_group_students)
+    
+    context = {
+        'group': group,
+        'school_class': group.school_class,
+        'available_students': available_students,
+        'selected_students': group.students.all(),
+    }
+    return render(request, 'apptask/teacher/group_form.html', context)
+
+@login_required
+@user_passes_test(teacher_required)
+def teacher_group_delete(request, group_id):
+    """Eliminar un grupo"""
+    teacher = request.user
+    group = get_object_or_404(Group, id=group_id, school_class__teacher=teacher)
+    
+    if request.method == 'POST':
+        group_name = group.name
+        class_id = group.school_class.id
+        group.delete()
+        messages.success(request, f'Grupo "{group_name}" eliminado exitosamente.')
+        return redirect('teacher_group_list', class_id=class_id)
+    
+    context = {
+        'group': group,
+    }
+    return render(request, 'apptask/teacher/group_confirm_delete.html', context)
+
+@login_required
+@user_passes_test(teacher_required)
+def ajax_get_groups(request):
+    class_id = request.GET.get('class_id')
+    groups = []
+    if class_id:
+        groups = Group.objects.filter(school_class_id=class_id).values('id', 'name')
+    return JsonResponse({'groups': list(groups)})
 

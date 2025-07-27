@@ -18,12 +18,36 @@
                     <div class="col-md-6">
                         <p><strong>Clase:</strong> {{ task.school_class.identify }}</p>
                         <p><strong>Profesor:</strong> {{ task.school_class.teacher.name }}</p>
+                        {% if task.is_group_task %}
+                            <p><strong>Tipo:</strong> <span class="badge bg-warning">Tarea Grupal</span></p>
+                        {% else %}
+                            <p><strong>Tipo:</strong> <span class="badge bg-info">Tarea Individual</span></p>
+                        {% endif %}
                     </div>
                     <div class="col-md-6">
                         <p><strong>Fecha de entrega:</strong> {{ task.delivery_date }} {{ task.delivery_time }}</p>
                         <p><strong>Creada:</strong> {{ task.created_at|date:"d/m/Y" }}</p>
                     </div>
                 </div>
+                
+                {% if task.is_group_task and group_info %}
+                    <div class="mt-3">
+                        <div class="alert alert-warning">
+                            <h6><i class="bi bi-people"></i> Información del Grupo</h6>
+                            <p><strong>Grupo:</strong> {{ group_info.name }}</p>
+                            <p><strong>Miembros:</strong></p>
+                            <ul class="mb-0">
+                                {% for member in group_info.members %}
+                                    <li>{{ member.display_name }}</li>
+                                {% endfor %}
+                            </ul>
+                            <small class="text-muted">
+                                <i class="bi bi-info-circle"></i> 
+                                Solo un miembro del grupo puede entregar la tarea. La calificación se aplicará a todos los miembros.
+                            </small>
+                        </div>
+                    </div>
+                {% endif %}
                 {% if task.instruction %}
                     <div class="mt-3">
                         <h6>Instrucciones:</h6>

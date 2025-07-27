@@ -1,10 +1,21 @@
 from django import forms
-from .models import Task, Delivery, SchoolClass, User
+from .models import Task, Delivery, SchoolClass, User, Group
 
 class TaskForm(forms.ModelForm):
+    is_group_task = forms.BooleanField(
+        required=False,
+        label="¿Es tarea grupal?",
+        widget=forms.CheckboxInput(attrs={'class': 'form-check-input'})
+    )
+    group = forms.ModelChoiceField(
+        queryset=None,
+        required=False,
+        label="Grupo (opcional)",
+        widget=forms.Select(attrs={'class': 'form-select'})
+    )
     class Meta:
         model = Task
-        fields = ['school_class', 'theme', 'instruction', 'delivery_date', 'delivery_time', 'attachment']
+        fields = ['school_class', 'theme', 'instruction', 'delivery_date', 'delivery_time', 'attachment', 'is_group_task', 'group']
         widgets = {
             'school_class': forms.Select(attrs={'class': 'form-control'}),
             'theme': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Tema de la tarea'}),
@@ -25,6 +36,17 @@ class TaskForm(forms.ModelForm):
             self.fields['school_class'].queryset = user.taught_classes.all()
         else:
             self.fields['school_class'].queryset = SchoolClass.objects.none()
+        # Inicializar queryset de grupos vacío
+        self.fields['group'].queryset = Group.objects.none()
+        # Si hay una clase seleccionada, mostrar los grupos de esa clase
+        if 'school_class' in self.data:
+            try:
+                class_id = int(self.data.get('school_class'))
+                self.fields['group'].queryset = Group.objects.filter(school_class_id=class_id)
+            except (ValueError, TypeError):
+                self.fields['group'].queryset = Group.objects.none()
+        elif self.instance.pk and self.instance.school_class:
+            self.fields['group'].queryset = Group.objects.filter(school_class=self.instance.school_class)
     
     def clean_attachment(self):
         """Validar archivo adjunto"""

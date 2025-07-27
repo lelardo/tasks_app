@@ -1,9 +1,6 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
-from .models import User, SchoolClass, Task, Delivery
-from django.contrib import admin
-from django.contrib.auth.admin import UserAdmin
-from .models import User, SchoolClass, Task, Delivery, SessionConfig  # Agregar SessionConfig
+from .models import User, SchoolClass, Task, Delivery, Group, SessionConfig
 
 
 @admin.register(User)
@@ -40,10 +37,26 @@ class SchoolClassAdmin(admin.ModelAdmin):
         queryset = super().get_queryset(request)
         return queryset.select_related('teacher')
 
+@admin.register(Group)
+class GroupAdmin(admin.ModelAdmin):
+    list_display = ['name', 'school_class', 'member_count', 'created_at']
+    list_filter = ['school_class', 'created_at']
+    search_fields = ['name', 'school_class__identify']
+    filter_horizontal = ['students']
+    ordering = ['school_class', 'name']
+    
+    def member_count(self, obj):
+        return obj.students.count()
+    member_count.short_description = 'Miembros'
+    
+    def get_queryset(self, request):
+        queryset = super().get_queryset(request)
+        return queryset.select_related('school_class').prefetch_related('students')
+
 @admin.register(Task)
 class TaskAdmin(admin.ModelAdmin):
-    list_display = ['theme', 'school_class', 'delivery_date', 'delivery_time', 'created_at']
-    list_filter = ['school_class', 'delivery_date', 'created_at']
+    list_display = ['theme', 'school_class', 'task_type', 'delivery_date', 'delivery_time', 'created_at']
+    list_filter = ['school_class', 'is_group_task', 'delivery_date', 'created_at']
     search_fields = ['theme', 'instruction', 'school_class__identify']
     ordering = ['-created_at']
     date_hierarchy = 'delivery_date'
@@ -52,14 +65,24 @@ class TaskAdmin(admin.ModelAdmin):
         ('Información de la Tarea', {
             'fields': ('theme', 'instruction', 'school_class')
         }),
+        ('Configuración de Grupo', {
+            'fields': ('is_group_task', 'group'),
+            'classes': ('collapse',)
+        }),
         ('Fechas de Entrega', {
             'fields': ('delivery_date', 'delivery_time')
         }),
     )
     
+    def task_type(self, obj):
+        if obj.is_group_task:
+            return f"Grupal ({obj.group.name if obj.group else 'Sin grupo'})"
+        return "Individual"
+    task_type.short_description = 'Tipo'
+    
     def get_queryset(self, request):
         queryset = super().get_queryset(request)
-        return queryset.select_related('school_class', 'school_class__teacher')
+        return queryset.select_related('school_class', 'school_class__teacher', 'group')
 
 @admin.register(SessionConfig)
 class SessionConfigAdmin(admin.ModelAdmin):
@@ -90,8 +113,8 @@ class SessionConfigAdmin(admin.ModelAdmin):
 
 @admin.register(Delivery)
 class DeliveryAdmin(admin.ModelAdmin):
-    list_display = ['task', 'student', 'date', 'delivery_time', 'grade', 'grade_status']
-    list_filter = ['task__school_class', 'date', 'grade']
+    list_display = ['task', 'student', 'delivery_type', 'date', 'delivery_time', 'grade', 'grade_status']
+    list_filter = ['task__school_class', 'is_group_delivery', 'date', 'grade']
     search_fields = ['task__theme', 'student__name', 'student__email']
     ordering = ['-date', '-delivery_time']
     date_hierarchy = 'date'
@@ -99,6 +122,10 @@ class DeliveryAdmin(admin.ModelAdmin):
     fieldsets = (
         ('Información de la Entrega', {
             'fields': ('task', 'student', 'revisor')
+        }),
+        ('Configuración de Grupo', {
+            'fields': ('is_group_delivery', 'group'),
+            'classes': ('collapse',)
         }),
         ('Detalles de Entrega', {
             'fields': ('date', 'delivery_time', 'file_url')
@@ -110,9 +137,15 @@ class DeliveryAdmin(admin.ModelAdmin):
     
     readonly_fields = ['grade_status']
     
+    def delivery_type(self, obj):
+        if obj.is_group_delivery:
+            return f"Grupal ({obj.group.name if obj.group else 'Sin grupo'})"
+        return "Individual"
+    delivery_type.short_description = 'Tipo'
+    
     def get_queryset(self, request):
         queryset = super().get_queryset(request)
-        return queryset.select_related('task', 'student', 'revisor', 'task__school_class')
+        return queryset.select_related('task', 'student', 'revisor', 'task__school_class', 'group')
     
     def grade_status(self, obj):
         return obj.grade_status
