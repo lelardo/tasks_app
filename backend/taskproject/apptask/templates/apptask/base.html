@@ -1,3 +1,4 @@
+{% load static %}
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -119,6 +120,21 @@
         {% endblock %}
     </main>
 
+    <!-- Scripts -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <!-- Script de timeout de sesión -->
+    <script src="{% static 'js/session_timeout.js' %}"></script>
+
+    <!-- Variables de sesión para JavaScript -->
+    <script>
+        {% if request.session.show_timeout_warning %}
+            var sessionTimeoutWarning = true;
+            var sessionTimeoutWarningMinutes = {{ request.session.timeout_warning_minutes|default:5 }};
+        {% else %}
+            var sessionTimeoutWarning = false;
+            var sessionTimeoutWarningMinutes = 0;
+        {% endif %}
+    </script>
 </body>
 </html>

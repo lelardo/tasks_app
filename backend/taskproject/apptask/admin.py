@@ -1,6 +1,10 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
 from .models import User, SchoolClass, Task, Delivery
+from django.contrib import admin
+from django.contrib.auth.admin import UserAdmin
+from .models import User, SchoolClass, Task, Delivery, SessionConfig  # Agregar SessionConfig
+
 
 @admin.register(User)
 class CustomUserAdmin(UserAdmin):
@@ -56,6 +60,33 @@ class TaskAdmin(admin.ModelAdmin):
     def get_queryset(self, request):
         queryset = super().get_queryset(request)
         return queryset.select_related('school_class', 'school_class__teacher')
+
+@admin.register(SessionConfig)
+class SessionConfigAdmin(admin.ModelAdmin):
+    list_display = ['session_timeout_minutes', 'enable_session_timeout', 'show_timeout_warning', 'warning_time_minutes', 'updated_at']
+    list_editable = ['enable_session_timeout', 'show_timeout_warning']
+    readonly_fields = ['created_at', 'updated_at']
+    
+    fieldsets = (
+        ('Configuración de Timeout', {
+            'fields': ('session_timeout_minutes', 'enable_session_timeout')
+        }),
+        ('Configuración de Advertencias', {
+            'fields': ('show_timeout_warning', 'warning_time_minutes')
+        }),
+        ('Información del Sistema', {
+            'fields': ('created_at', 'updated_at'),
+            'classes': ('collapse',)
+        }),
+    )
+    
+    def has_add_permission(self, request):
+        # Solo permitir una instancia de configuración
+        return not SessionConfig.objects.exists()
+    
+    def has_delete_permission(self, request, obj=None):
+        # No permitir eliminar la configuración
+        return False
 
 @admin.register(Delivery)
 class DeliveryAdmin(admin.ModelAdmin):

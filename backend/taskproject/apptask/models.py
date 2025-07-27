@@ -342,3 +342,46 @@ class Notification(models.Model):
     def __str__(self):
         return f"Notificación para {self.student.display_name}: {self.message[:50]}"
     
+# ... existing code ...
+
+class SessionConfig(models.Model):
+    """Configuración de sesiones del sistema"""
+    session_timeout_minutes = models.PositiveIntegerField(
+        default=30,
+        help_text='Tiempo de inactividad en minutos antes de cerrar la sesión'
+    )
+    enable_session_timeout = models.BooleanField(
+        default=True,
+        help_text='Habilitar límite de tiempo de sesión'
+    )
+    show_timeout_warning = models.BooleanField(
+        default=True,
+        help_text='Mostrar advertencia antes de cerrar la sesión'
+    )
+    warning_time_minutes = models.PositiveIntegerField(
+        default=5,
+        help_text='Minutos antes del timeout para mostrar advertencia'
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        verbose_name = "Configuración de Sesión"
+        verbose_name_plural = "Configuraciones de Sesión"
+    
+    def __str__(self):
+        return f"Configuración de Sesión (Timeout: {self.session_timeout_minutes} min)"
+    
+    @classmethod
+    def get_config(cls):
+        """Obtiene la configuración actual o crea una por defecto"""
+        config, created = cls.objects.get_or_create(
+            id=1,
+            defaults={
+                'session_timeout_minutes': 30,
+                'enable_session_timeout': True,
+                'show_timeout_warning': True,
+                'warning_time_minutes': 5
+            }
+        )
+        return config
