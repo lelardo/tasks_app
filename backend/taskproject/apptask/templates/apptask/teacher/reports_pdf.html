@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Reporte Docente PDF</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 30px; }
+        h2 { color: #222; }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 24px; }
+        th, td { border: 1px solid #888; padding: 6px 10px; text-align: left; }
+        th { background: #f0f0f0; }
+        .text-danger { color: #c00; }
+        .text-warning { color: #e69a00; }
+        .section-title { margin-top: 32px; margin-bottom: 8px; font-size: 1.1em; }
+    </style>
+</head>
+<body>
+    <h2>Reporte de Docente</h2>
+    {% if tasks %}
+        <div class="section-title">Tareas del curso</div>
+        <table>
+            <thead>
+                <tr>
+                    <th>Tema</th>
+                    <th>Fecha de entrega</th>
+                    <th>Unidad</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for t in tasks %}
+                <tr>
+                    <td>{{ t.theme }}</td>
+                    <td>{{ t.delivery_date }}</td>
+                    <td>{{ t.unit }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% endif %}
+    {% if averages %}
+        <div class="section-title">Promedios por estudiante</div>
+        <table>
+            <thead>
+                <tr>
+                    <th>Estudiante</th>
+                    <th>Promedio</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for avg in averages %}
+                <tr>
+                    <td>{{ avg.student.display_name }}</td>
+                    <td>{% if avg.average %}{{ avg.average|floatformat:2 }}{% else %}-{% endif %}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% endif %}
+    {% if entrega_matrix and task_headers %}
+        <div class="section-title">Entregas por tarea y estudiante</div>
+        <table>
+            <thead>
+                <tr>
+                    <th>Estudiante</th>
+                    {% for t in task_headers %}
+                        <th>{{ t.theme }}</th>
+                    {% endfor %}
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in entrega_matrix %}
+                <tr>
+                    <td>{{ row.student.display_name }}</td>
+                    {% for nota in row.entregas %}
+                        <td>{% if nota == 'No entregó' %}<span class="text-danger">No entregó</span>{% elif nota == 'Sin calificar' %}<span class="text-warning">Sin calificar</span>{% else %}{{ nota }}{% endif %}</td>
+                    {% endfor %}
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% endif %}
+    <div style="margin-top: 40px; font-size: 0.9em; color: #888;">Reporte generado automáticamente por el Sistema de Tareas.</div>
+</body>
+</html> 

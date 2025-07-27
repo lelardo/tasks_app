@@ -1,0 +1,135 @@
+{% extends 'apptask/base.html' %}
+{% block title %}Reportes Docente{% endblock %}
+{% block content %}
+<div class="container mt-4">
+    <h2 class="mb-4"><i class="bi bi-graph-up"></i> Reportes de Docente</h2>
+    <form method="get" class="row g-3 mb-4">
+        <div class="col-md-4">
+            <label for="class_id" class="form-label">Clase</label>
+            <select name="class_id" id="class_id" class="form-select" onchange="this.form.submit()">
+                <option value="">Seleccione una clase</option>
+                {% for c in classes %}
+                    <option value="{{ c.id }}" {% if c.id|stringformat:'s' == selected_class_id %}selected{% endif %}>{{ c.identify }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="col-md-4">
+            <label for="task_id" class="form-label">Tarea</label>
+            <select name="task_id" id="task_id" class="form-select" onchange="this.form.submit()">
+                <option value="">Todas las tareas</option>
+                {% for t in tasks %}
+                    <option value="{{ t.id }}" {% if t.id|stringformat:'s' == selected_task_id %}selected{% endif %}>{{ t.theme }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="col-md-4 d-flex align-items-end">
+            <button type="submit" class="btn btn-primary me-2">Filtrar</button>
+            {% if students and task_headers %}
+                <a href="?class_id={{ selected_class_id }}{% if selected_task_id %}&task_id={{ selected_task_id }}{% endif %}&export=excel" class="btn btn-success me-2">
+                    <i class="bi bi-file-earmark-excel"></i> Exportar Excel
+                </a>
+            {% endif %}
+        </div>
+    </form>
+    <button class="btn btn-primary mb-3 no-print" onclick="window.print()">
+        <i class="bi bi-printer"></i> Imprimir Reporte PDF
+    </button>
+    <style>
+    @media print {
+        .btn, .navbar, .sidebar, .no-print { display: none !important; }
+        body { background: #fff !important; }
+    }
+    </style>
+    {% if tasks %}
+        <h4>Tareas del curso</h4>
+        <table class="table table-bordered table-striped">
+            <thead>
+                <tr>
+                    <th>Tema</th>
+                    <th>Fecha de entrega</th>
+                    <th>Unidad</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for t in tasks %}
+                <tr>
+                    <td>{{ t.theme }}</td>
+                    <td>{{ t.delivery_date }}</td>
+                    <td>{{ t.unit }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% endif %}
+    {% if deliveries %}
+        <h4 class="mt-4">Entregas</h4>
+        <table class="table table-bordered table-hover">
+            <thead>
+                <tr>
+                    <th>Estudiante</th>
+                    <th>Tarea</th>
+                    <th>Fecha</th>
+                    <th>Nota</th>
+                    <th>Observación</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for d in deliveries %}
+                <tr>
+                    <td>{{ d.student.display_name }}</td>
+                    <td>{{ d.task.theme }}</td>
+                    <td>{{ d.date }}</td>
+                    <td>{{ d.grade|default:'-' }}</td>
+                    <td>{{ d.feedback|default:'-' }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% endif %}
+    {% if averages %}
+        <h4 class="mt-4">Promedios por estudiante</h4>
+        <table class="table table-bordered">
+            <thead>
+                <tr>
+                    <th>Estudiante</th>
+                    <th>Promedio</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for avg in averages %}
+                <tr>
+                    <td>{{ avg.student.display_name }}</td>
+                    <td>{% if avg.average %}{{ avg.average|floatformat:2 }}{% else %}-{% endif %}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% endif %}
+    {% if entrega_matrix and task_headers %}
+        <h4 class="mt-4">Entregas por tarea y estudiante</h4>
+        <table class="table table-bordered table-hover">
+            <thead>
+                <tr>
+                    <th>Estudiante</th>
+                    {% for t in task_headers %}
+                        <th>{{ t.theme }}</th>
+                    {% endfor %}
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in entrega_matrix %}
+                <tr>
+                    <td>{{ row.student.display_name }}</td>
+                    {% for nota in row.entregas %}
+                        <td>{% if nota == 'No entregó' %}<span class="text-danger">No entregó</span>{% elif nota == 'Sin calificar' %}<span class="text-warning">Sin calificar</span>{% else %}{{ nota }}{% endif %}</td>
+                    {% endfor %}
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% endif %}
+    {% if not tasks and not deliveries %}
+        <div class="alert alert-info mt-4">Seleccione una clase para ver los reportes.</div>
+    {% endif %}
+</div>
+{% endblock %} 
