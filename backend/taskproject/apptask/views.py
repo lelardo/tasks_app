@@ -1,30 +1,3 @@
-def student_required(user):
-    """Verifica que el usuario sea estudiante"""
-    return user.is_authenticated and user.role == 'student'
-
-from django.utils.timezone import now
-from django.shortcuts import render, get_object_or_404, redirect
-from django.contrib import messages
-from django.contrib.auth.decorators import login_required, user_passes_test
-
-# ...existing code...
-
-@login_required
-@user_passes_test(student_required)
-def student_task_report(request, task_id):
-    """Genera un reporte sencillo de la tarea para el estudiante"""
-    student = request.user
-    task = get_object_or_404(Task, id=task_id, school_class__student_list=student)
-    try:
-        my_delivery = Delivery.objects.get(task=task, student=student)
-    except Delivery.DoesNotExist:
-        my_delivery = None
-    context = {
-        'task': task,
-        'my_delivery': my_delivery,
-        'report_date': now(),
-    }
-    return render(request, 'apptask/student/task_report.html', context)
 from django.shortcuts import render, get_object_or_404, redirect
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required, user_passes_test
@@ -58,12 +31,40 @@ import string
 from django.core.exceptions import ValidationError
 from apptask.models import SchoolClass
 from django.contrib.auth.decorators import login_required, user_passes_test
-from django.shortcuts import render, redirect
-from django.http import HttpResponse
+from django.shortcuts import render, get_object_or_404, redirect
+from django.http import HttpResponse, JsonResponse
+from django.views.decorators.http import require_POST
+from django.views.decorators.csrf import csrf_exempt
+from django.contrib import messages
+from django.template.loader import render_to_string
+from django.utils.timezone import now
 import io
 import pandas as pd
-from .models import SchoolClass, Task, Delivery, User
-from django.template.loader import render_to_string
+import json
+
+from .models import SchoolClass, Task, Delivery, User, SessionConfig
+
+def student_required(user):
+    """Verifica que el usuario sea estudiante"""
+    return user.is_authenticated and user.role == 'student'
+
+@login_required
+@user_passes_test(student_required)
+def student_task_report(request, task_id):
+    """Genera un reporte sencillo de la tarea para el estudiante"""
+    student = request.user
+    task = get_object_or_404(Task, id=task_id, school_class__student_list=student)
+    try:
+        my_delivery = Delivery.objects.get(task=task, student=student)
+    except Delivery.DoesNotExist:
+        my_delivery = None
+    context = {
+        'task': task,
+        'my_delivery': my_delivery,
+        'report_date': now(),
+    }
+    return render(request, 'apptask/student/task_report.html', context)
+
 
 
 # class TaskForm(forms.ModelForm):
@@ -1246,9 +1247,28 @@ def admin_system_config(request):
         elif action == 'update_settings':
             # Actualizar configuraciones
             messages.success(request, 'Configuraciones actualizadas exitosamente.')
+
+        elif action == 'update_session_config':
+            # Actualizar configuración de sesiones
+            try:
+                session_config = SessionConfig.get_config()
+                session_config.session_timeout_minutes = int(request.POST.get('session_timeout_minutes', 30))
+                session_config.enable_session_timeout = request.POST.get('enable_session_timeout') == 'on'
+                session_config.show_timeout_warning = request.POST.get('show_timeout_warning') == 'on'
+                session_config.warning_time_minutes = int(request.POST.get('warning_time_minutes', 5))
+                session_config.save()
+                messages.success(request, 'Configuración de sesiones actualizada exitosamente.')
+            except Exception as e:
+                messages.error(request, f'Error al actualizar configuración de sesiones: {str(e)}')
         
         return redirect('admin_system_config')
     
+    # Obtener configuración de sesiones
+    try:
+        session_config = SessionConfig.get_config()
+    except:
+        session_config = None
+
     # Obtener información del sistema
     system_info = {
         'python_version': sys.version,
@@ -1333,9 +1353,28 @@ def admin_system_config(request):
         'roles_stats': roles_stats,
         'backup_info': backup_info,
         'recent_activity': recent_activity,
+        'session_config': session_config,
     }
     
     return render(request, 'apptask/admin/system_config.html', context)
+
+@require_POST
+@csrf_exempt
+def extend_session(request):
+    """Extender la sesión del usuario cuando hace una acción consciente"""
+    if request.user.is_authenticated:
+        # Actualizar timestamp de última actividad SOLO cuando el usuario hace una acción consciente
+        request.session['last_activity'] = timezone.now().timestamp()
+        request.session.modified = True
+        
+        # Limpiar advertencias de timeout
+        request.session.pop('show_timeout_warning', None)
+        request.session.pop('timeout_warning_minutes', None)
+        request.session.modified = True
+        
+        return JsonResponse({'success': True})
+    return JsonResponse({'success': False}, status=401)
+
 
 @login_required
 @user_passes_test(admin_required)

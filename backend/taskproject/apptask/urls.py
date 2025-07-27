@@ -3,6 +3,9 @@ from rest_framework_simplejwt.views import TokenRefreshView
 from . import views
 
 urlpatterns = [
+
+    path('extend-session/', views.extend_session, name='extend_session'),
+
     path('student/tasks/<int:task_id>/report/', views.student_task_report, name='student_task_report'),
     # === URLs BÁSICAS ===
     path('login/', views.user_login_page, name='login'),
