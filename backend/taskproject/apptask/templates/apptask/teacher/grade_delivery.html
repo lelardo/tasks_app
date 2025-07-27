@@ -36,24 +36,34 @@
                         
                         <h6 class="mt-3"><i class="bi bi-paperclip text-primary"></i> Archivo Entregado</h6>
                         {% if delivery.has_attachment %}
-                            <div class="d-flex align-items-center bg-light p-2 rounded">
-                                <div class="me-2">
-                                    <i class="bi bi-file-earmark-text text-primary" style="font-size: 1.5rem;"></i>
+                            <div class="bg-light p-3 rounded">
+                                <div class="d-flex align-items-center mb-2">
+                                    <i class="bi bi-file-earmark-text text-primary me-2" style="font-size: 1.5rem;"></i>
+                                    <div class="text-truncate" title="{{ delivery.attachment_name }}">
+                                        <strong>{{ delivery.attachment_name }}</strong>
+                                    </div>
                                 </div>
-                                <div class="flex-grow-1">
-                                    <strong>{{ delivery.attachment_name }}</strong><br>
+                                <div class="d-flex justify-content-between align-items-center">
                                     <small class="text-muted">{{ delivery.attachment_size }} MB</small>
-                                </div>
-                                <div>
                                     <a href="{% url 'download_delivery_attachment' delivery.id %}" class="btn btn-primary btn-sm" target="_blank">
                                         <i class="bi bi-download"></i> Descargar
                                     </a>
                                 </div>
                             </div>
                         {% elif delivery.file_url %}
-                            <a href="{{ delivery.file_url }}" target="_blank" class="btn btn-outline-primary btn-sm">
-                                <i class="bi bi-link-45deg"></i> Ver archivo (URL)
-                            </a>
+                            <div class="bg-light p-3 rounded">
+                                <div class="d-flex align-items-center mb-2">
+                                    <i class="bi bi-link-45deg text-primary me-2" style="font-size: 1.5rem;"></i>
+                                    <div class="text-truncate" title="{{ delivery.file_url }}">
+                                        <strong>{{ delivery.file_url }}</strong>
+                                    </div>
+                                </div>
+                                <div class="text-end">
+                                    <a href="{{ delivery.file_url }}" target="_blank" class="btn btn-outline-primary btn-sm">
+                                        <i class="bi bi-link-45deg"></i> Ver archivo
+                                    </a>
+                                </div>
+                            </div>
                         {% else %}
                             <p class="text-muted">No hay archivo adjunto</p>
                         {% endif %}
@@ -74,16 +84,18 @@
                 {% if delivery.task.has_attachment %}
                     <div class="mb-4">
                         <h6><i class="bi bi-paperclip text-primary"></i> Material del Profesor</h6>
-                        <div class="bg-light p-2 rounded d-flex align-items-center">
-                            <div class="me-2">
-                                <i class="bi bi-file-earmark-text text-primary"></i>
+                        <div class="bg-light p-3 rounded">
+                            <div class="d-flex align-items-center mb-2">
+                                <i class="bi bi-file-earmark-text text-primary me-2"></i>
+                                <div class="text-truncate" title="{{ delivery.task.attachment_name }}">
+                                    <strong>{{ delivery.task.attachment_name }}</strong>
+                                </div>
                             </div>
-                            <div class="flex-grow-1">
-                                <strong>{{ delivery.task.attachment_name }}</strong>
+                            <div class="text-end">
+                                <a href="{% url 'download_task_attachment' delivery.task.id %}" class="btn btn-outline-primary btn-sm" target="_blank">
+                                    <i class="bi bi-download"></i> Ver
+                                </a>
                             </div>
-                            <a href="{% url 'download_task_attachment' delivery.task.id %}" class="btn btn-outline-primary btn-sm" target="_blank">
-                                <i class="bi bi-download"></i> Ver
-                            </a>
                         </div>
                     </div>
                 {% endif %}
@@ -136,21 +148,6 @@
                         {% endif %}
                     </div>
                     
-                    <!-- Campo de archivo corregido -->
-                    <div class="mb-3">
-                        <label for="{{ form.file_corrected_url.id_for_label }}" class="form-label">
-                            <i class="bi bi-link-45deg"></i> URL Archivo Corregido (Opcional)
-                        </label>
-                        {{ form.file_corrected_url }}
-                        <div class="form-text">
-                            URL del archivo con correcciones
-                        </div>
-                        {% if form.file_corrected_url.errors %}
-                            <div class="text-danger small">
-                                {{ form.file_corrected_url.errors }}
-                            </div>
-                        {% endif %}
-                    </div>
                     
                     <!-- Campo de archivo adjunto corregido -->
                     <div class="mb-3">
@@ -169,11 +166,19 @@
                         
                         <!-- Mostrar archivo corregido actual si existe -->
                         {% if delivery.has_corrected_attachment %}
-                            <div class="mt-2 p-2 bg-light rounded">
-                                <small><strong>Archivo actual:</strong> {{ delivery.corrected_attachment_name }} ({{ delivery.corrected_attachment_size }} MB)</small>
-                                <a href="{% url 'download_corrected_attachment' delivery.id %}" class="btn btn-xs btn-outline-primary ms-2" target="_blank">
-                                    <i class="bi bi-download"></i> Descargar
-                                </a>
+                            <div class="mt-2 bg-light p-3 rounded">
+                                <div class="d-flex align-items-center mb-2">
+                                    <i class="bi bi-file-earmark-check text-success me-2"></i>
+                                    <div class="text-truncate" title="{{ delivery.corrected_attachment_name }}">
+                                        <strong>{{ delivery.corrected_attachment_name }}</strong>
+                                    </div>
+                                </div>
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <small class="text-muted">{{ delivery.corrected_attachment_size }} MB</small>
+                                    <a href="{% url 'download_corrected_attachment' delivery.id %}" class="btn btn-sm btn-outline-success" target="_blank">
+                                        <i class="bi bi-download"></i> Descargar
+                                    </a>
+                                </div>
                             </div>
                         {% endif %}
                     </div>

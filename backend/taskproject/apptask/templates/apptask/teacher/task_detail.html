@@ -111,6 +111,100 @@
     </div>
 </div>
 
+<!-- Lista de Entregas -->
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header bg-success text-white">
+                <h5 class="mb-0">
+                    <i class="bi bi-upload"></i> Entregas de Estudiantes ({{ deliveries|length }})
+                </h5>
+            </div>
+            <div class="card-body">
+                {% if deliveries %}
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Estudiante</th>
+                                    <th>Fecha y Hora</th>
+                                    <th>Archivo</th>
+                                    <th>Calificación</th>
+                                    <th>Acción</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for delivery in deliveries %}
+                                    <tr>
+                                        <td>
+                                            <strong>{{ delivery.student.name }}</strong><br>
+                                            <small class="text-muted">{{ delivery.student.email }}</small>
+                                        </td>
+                                        <td>
+                                            {{ delivery.date }} {{ delivery.delivery_time }}<br>
+                                            {% if delivery.is_late %}
+                                                <span class="badge bg-danger">Entrega tardía</span>
+                                            {% else %}
+                                                <span class="badge bg-success">A tiempo</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            {% if delivery.has_attachment %}
+                                                <div class="d-flex align-items-center">
+                                                    <div class="text-truncate me-2" style="max-width: 200px;" title="{{ delivery.attachment_name }}">
+                                                        {{ delivery.attachment_name }}
+                                                    </div>
+                                                    <a href="{% url 'download_delivery_attachment' delivery.id %}" class="btn btn-sm btn-outline-primary flex-shrink-0">
+                                                        <i class="bi bi-download"></i>
+                                                    </a>
+                                                </div>
+                                            {% else %}
+                                                <span class="text-muted">Sin archivo</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            {% if delivery.grade %}
+                                                <strong>{{ delivery.grade|floatformat:2 }}/10</strong>
+                                            {% else %}
+                                                <span class="text-muted">Sin calificar</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            <a href="{% url 'teacher_delivery_grade' delivery.id %}" class="btn btn-sm btn-primary">
+                                                <i class="bi bi-eye"></i> Ver
+                                            </a>
+                                        </td>
+                                    </tr>
+                                    {% if delivery.grade %}
+                                        <tr class="collapse" id="feedback-{{ delivery.id }}">
+                                            <td colspan="6">
+                                                <div class="bg-light p-3 rounded">
+                                                    <h6>Retroalimentación:</h6>
+                                                    <p>{{ delivery.feedback|default:"Sin retroalimentación" }}</p>
+                                                    {% if delivery.has_corrected_attachment %}
+                                                        <a href="{% url 'download_corrected_attachment' delivery.id %}" class="btn btn-sm btn-outline-primary">
+                                                            <i class="bi bi-download"></i> {{ delivery.corrected_attachment_name }}
+                                                        </a>
+                                                    {% endif %}
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    {% endif %}
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <div class="text-center py-4">
+                        <i class="bi bi-inbox fs-1 text-muted"></i>
+                        <p class="mt-2 text-muted">No hay entregas para esta tarea aún</p>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Modal de confirmación para eliminar tarea -->
 <div class="modal fade" id="deleteTaskModal" tabindex="-1" aria-labelledby="deleteTaskModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">

@@ -121,9 +121,13 @@
                                             {% endif %}
                                         </td>
                                         <td>
-                                            <a href="{{ delivery.file_url }}" target="_blank" class="btn btn-sm btn-outline-primary">
-                                                <i class="bi bi-download"></i> Ver archivo
-                                            </a>
+                                            {% if delivery.has_attachment %}
+                                                <a href="{% url 'download_delivery_attachment' delivery.id %}" class="btn btn-sm btn-outline-primary">
+                                                    <i class="bi bi-download"></i> {{ delivery.attachment_name }}
+                                                </a>
+                                            {% else %}
+                                                <span class="text-muted">Sin archivo</span>
+                                            {% endif %}
                                         </td>
                                         <td>
                                             {% if delivery.grade %}
@@ -167,9 +171,9 @@
                                                         <h6>Calificación:</h6>
                                                         <p><strong>{{ delivery.grade|floatformat:2 }}/10</strong> - {{ delivery.grade_status }}</p>
                                                     {% endif %}
-                                                    {% if delivery.file_corrected_url %}
-                                                        <a href="{{ delivery.file_corrected_url }}" target="_blank" class="btn btn-sm btn-outline-primary">
-                                                            <i class="bi bi-download"></i> Archivo Corregido
+                                                    {% if delivery.has_corrected_attachment %}
+                                                        <a href="{% url 'download_corrected_attachment' delivery.id %}" class="btn btn-sm btn-outline-primary">
+                                                            <i class="bi bi-download"></i> {{ delivery.corrected_attachment_name }}
                                                         </a>
                                                     {% endif %}
                                                 </div>

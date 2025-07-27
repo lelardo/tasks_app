@@ -160,7 +160,7 @@ def admin_dashboard(request):
 @login_required
 @user_passes_test(teacher_required)
 def create_task(request):
-    """Crear una nueva tarea (solo docentes) - CON SOPORTE PARA ARCHIVOS"""
+    """Crear una nueva tarea para docentes - CON SOPORTE PARA ARCHIVOS"""
     if request.method == 'POST':
         form = TaskForm(user=request.user, data=request.POST, files=request.FILES)
         if form.is_valid():
@@ -766,7 +766,7 @@ def student_delivery_edit(request, delivery_id):
     })
 
 @login_required
-@user_passes_test(teacher_required)
+@user_passes_test(student_required)
 def student_delivery_list(request):
     """Lista de entregas del estudiante"""
     student = request.user
@@ -1515,29 +1515,29 @@ def teacher_task_list(request):
 @login_required
 @user_passes_test(teacher_required)
 def teacher_pending_reviews(request):
-        """Vista para docentes: lista de tareas con entregas pendientes de revisión"""
-        teacher = request.user
+    """Vista para docentes: lista de tareas con entregas pendientes de revisión"""
+    teacher = request.user
 
-        # Obtener tareas del docente con entregas pendientes (sin feedback)
-        tasks_with_pending = (
-            Task.objects
-            .filter(school_class__teacher=teacher)
-            .annotate(pending_reviews=models.Count('delivery_list', filter=Q(delivery_list__feedback='')))
-            .filter(pending_reviews__gt=0)
-            .select_related('school_class')
-            .order_by('-created_at')
-        )
+    # Obtener tareas del docente con entregas pendientes (sin calificación)
+    tasks_with_pending = (
+        Task.objects
+        .filter(school_class__teacher=teacher)
+        .annotate(pending_reviews=models.Count('delivery_list', filter=Q(delivery_list__grade__isnull=True)))
+        .filter(pending_reviews__gt=0)
+        .select_related('school_class')
+        .order_by('-created_at')
+    )
 
-        # Paginación
-        paginator = Paginator(tasks_with_pending, 10)
-        page_number = request.GET.get('page')
-        page_obj = paginator.get_page(page_number)
+    # Paginación
+    paginator = Paginator(tasks_with_pending, 10)
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
 
-        context = {
-            'tasks_with_pending': page_obj,
-            'is_paginated': paginator.num_pages > 1,
-        }
-        return render(request, 'apptask/teacher/pending_reviews.html', context)
+    context = {
+        'tasks_with_pending': page_obj,
+        'is_paginated': paginator.num_pages > 1,
+    }
+    return render(request, 'apptask/teacher/pending_reviews.html', context)
 
 @login_required
 @user_passes_test(teacher_required)
@@ -1636,7 +1636,7 @@ def user_logout_view(request):
 def task_detail(request, task_id):
     """Detalle de una tarea específica"""
     task = get_object_or_404(Task, id=task_id)
-    deliveries = task.delivery_list.all()
+    deliveries = task.delivery_list.all().select_related('student').order_by('-date', '-delivery_time')
     return render(request, 'apptask/task_detail.html', {
         'task': task,
         'deliveries': deliveries
