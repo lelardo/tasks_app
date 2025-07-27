@@ -30,20 +30,23 @@ import secrets
 import string
 from django.core.exceptions import ValidationError
 from apptask.models import SchoolClass
-from django.http import JsonResponse
+from django.contrib.auth.decorators import login_required, user_passes_test
+from django.shortcuts import render, get_object_or_404, redirect
+from django.http import HttpResponse, JsonResponse
 from django.views.decorators.http import require_POST
 from django.views.decorators.csrf import csrf_exempt
+from django.contrib import messages
+from django.template.loader import render_to_string
+from django.utils.timezone import now
+import io
+import pandas as pd
 import json
-from .models import Task, Delivery, SchoolClass, User, SessionConfig  # Agregar SessionConfig
+
+from .models import SchoolClass, Task, Delivery, User, SessionConfig
 
 def student_required(user):
     """Verifica que el usuario sea estudiante"""
     return user.is_authenticated and user.role == 'student'
-
-from django.utils.timezone import now
-from django.shortcuts import render, get_object_or_404, redirect
-from django.contrib import messages
-from django.contrib.auth.decorators import login_required, user_passes_test
 
 @login_required
 @user_passes_test(student_required)
@@ -61,6 +64,7 @@ def student_task_report(request, task_id):
         'report_date': now(),
     }
     return render(request, 'apptask/student/task_report.html', context)
+
 
 
 # class TaskForm(forms.ModelForm):
@@ -2888,4 +2892,84 @@ def download_corrected_attachment(request, delivery_id):
         from django.http import Http404
 
         raise Http404(f"Error al descargar el archivo: {str(e)}")
+
+@login_required
+@user_passes_test(teacher_required)
+def teacher_reports(request):
+    teacher = request.user
+    classes = SchoolClass.objects.filter(teacher=teacher)
+    selected_class_id = request.GET.get('class_id')
+    selected_task_id = request.GET.get('task_id')
+    export = request.GET.get('export')  # 'excel' o 'pdf'
+
+    tasks = Task.objects.none()
+    deliveries = Delivery.objects.none()
+    averages = []
+    students = []
+    entrega_matrix = []
+    task_headers = []
+
+    if selected_class_id:
+        tasks = Task.objects.filter(school_class_id=selected_class_id)
+        if selected_task_id:
+            tasks = tasks.filter(id=selected_task_id)
+        task_headers = list(tasks)
+        deliveries = Delivery.objects.filter(task__in=tasks)
+        students = SchoolClass.objects.get(id=selected_class_id).student_list.all()
+        # Matriz de entregas: filas=estudiantes, columnas=tareas
+        for student in students:
+            row = {'student': student, 'entregas': []}
+            for task in tasks:
+                entrega = deliveries.filter(student=student, task=task).first()
+                if entrega:
+                    row['entregas'].append(entrega.grade if entrega.grade is not None else 'Sin calificar')
+                else:
+                    row['entregas'].append('No entregó')
+            entrega_matrix.append(row)
+        # Promedios por estudiante
+        for student in students:
+            student_deliveries = deliveries.filter(student=student, grade__isnull=False)
+            avg = student_deliveries.aggregate(avg_grade=Avg('grade'))['avg_grade']
+            averages.append({
+                'student': student,
+                'average': avg
+            })
+
+    # Exportar a Excel
+    if export == 'excel' and selected_class_id:
+        import pandas as pd
+        # Construir DataFrame de entregas
+        data = []
+        for row in entrega_matrix:
+            row_data = {'Estudiante': row['student'].display_name}
+            for idx, task in enumerate(task_headers):
+                row_data[task.theme] = row['entregas'][idx]
+            data.append(row_data)
+        df = pd.DataFrame(data)
+        # Agregar promedios
+        avg_dict = {a['student'].display_name: a['average'] for a in averages}
+        df['Promedio'] = df['Estudiante'].map(avg_dict)
+        output = io.BytesIO()
+        with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+            df.to_excel(writer, index=False, sheet_name='Reporte')
+        output.seek(0)
+        response = HttpResponse(
+            output,
+            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+        response['Content-Disposition'] = 'attachment; filename=reportes_docente.xlsx'
+        return response
+
+    context = {
+        'classes': classes,
+        'tasks': tasks,
+        'deliveries': deliveries,
+        'averages': averages,
+        'selected_class_id': selected_class_id,
+        'selected_task_id': selected_task_id,
+        'entrega_matrix': entrega_matrix,
+        'task_headers': task_headers,
+        'students': students,
+    }
+    return render(request, 'apptask/teacher/reports.html', context)
 
