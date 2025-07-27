@@ -51,7 +51,15 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'apptask.middleware.SessionTimeoutMiddleware',  # Agregar middleware de timeout de sesiones
 ]
+
+# Configuración de sesiones
+SESSION_COOKIE_AGE = 24 * 60 * 60  # 24 horas en segundos (más largo que nuestro timeout)
+SESSION_SAVE_EVERY_REQUEST = True  # Actualizar sesión en cada request
+SESSION_EXPIRE_AT_BROWSER_CLOSE = False  # No expirar al cerrar navegador
+SESSION_ENGINE = 'django.contrib.sessions.backends.db'  # Usar base de datos para sesiones
+
 
 ROOT_URLCONF = 'taskproject.urls'
 
