@@ -57,6 +57,23 @@
                         {% else %}
                             <p class="text-muted">No hay archivo adjunto</p>
                         {% endif %}
+                        
+                        {% if delivery.is_group_delivery and group_info %}
+                            <h6 class="mt-3"><i class="bi bi-people text-warning"></i> Información del Grupo</h6>
+                            <div class="alert alert-warning">
+                                <p><strong>Grupo:</strong> {{ group_info.name }}</p>
+                                <p><strong>Miembros:</strong></p>
+                                <ul class="mb-0">
+                                    {% for member in group_info.members %}
+                                        <li>{{ member.display_name }}</li>
+                                    {% endfor %}
+                                </ul>
+                                <small class="text-muted mt-2 d-block">
+                                    <i class="bi bi-info-circle"></i> 
+                                    Esta es una entrega grupal. La calificación se aplicará a todos los miembros del grupo.
+                                </small>
+                            </div>
+                        {% endif %}
                     </div>
                 </div>
                 

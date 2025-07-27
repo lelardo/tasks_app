@@ -46,6 +46,7 @@
             <thead>
                 <tr>
                     <th>Tema</th>
+                    <th>Tipo</th>
                     <th>Fecha de entrega</th>
                     <th>Unidad</th>
                 </tr>
@@ -54,6 +55,13 @@
                 {% for t in tasks %}
                 <tr>
                     <td>{{ t.theme }}</td>
+                    <td>
+                        {% if t.is_group_task %}
+                            <span class="badge bg-warning">Grupal{% if t.group %} ({{ t.group.name }}){% endif %}</span>
+                        {% else %}
+                            <span class="badge bg-info">Individual</span>
+                        {% endif %}
+                    </td>
                     <td>{{ t.delivery_date }}</td>
                     <td>{{ t.unit }}</td>
                 </tr>
@@ -68,6 +76,7 @@
                 <tr>
                     <th>Estudiante</th>
                     <th>Tarea</th>
+                    <th>Tipo</th>
                     <th>Fecha</th>
                     <th>Nota</th>
                     <th>Observación</th>
@@ -78,6 +87,13 @@
                 <tr>
                     <td>{{ d.student.display_name }}</td>
                     <td>{{ d.task.theme }}</td>
+                    <td>
+                        {% if d.is_group_delivery %}
+                            <span class="badge bg-warning">Grupal ({{ d.group.name }})</span>
+                        {% else %}
+                            <span class="badge bg-info">Individual</span>
+                        {% endif %}
+                    </td>
                     <td>{{ d.date }}</td>
                     <td>{{ d.grade|default:'-' }}</td>
                     <td>{{ d.feedback|default:'-' }}</td>

@@ -169,6 +169,29 @@ class SchoolClass(models.Model):
         verbose_name_plural = "Clases"
         # Remover ordering porque no hay created_at
 
+class Group(models.Model):
+    """Modelo para grupos de estudiantes dentro de una clase"""
+    name = models.CharField(max_length=100, help_text="Nombre del grupo (ej: Grupo A, Equipo 1)")
+    school_class = models.ForeignKey(
+        SchoolClass, 
+        on_delete=models.CASCADE, 
+        related_name='groups'
+    )
+    students = models.ManyToManyField(
+        User, 
+        related_name='student_groups',
+        limit_choices_to={'role': 'student'}
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    def __str__(self):
+        return f"{self.name} - {self.school_class.identify}"
+    
+    class Meta:
+        verbose_name = "Grupo"
+        verbose_name_plural = "Grupos"
+        unique_together = ['name', 'school_class']
+
 class Task(models.Model):
     theme = models.CharField(max_length=200)
     instruction = models.TextField(blank=True)
@@ -180,7 +203,21 @@ class Task(models.Model):
         on_delete=models.CASCADE, 
         related_name='tasks'
     )
-    created_at = models.DateTimeField(auto_now_add=True)  # Este campo SÍ existe en la BD
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    # Nuevo campo para tareas grupales
+    is_group_task = models.BooleanField(
+        default=False, 
+        help_text="Si está marcado, esta es una tarea grupal"
+    )
+    group = models.ForeignKey(
+        Group, 
+        on_delete=models.CASCADE, 
+        related_name='tasks',
+        null=True, 
+        blank=True,
+        help_text="Grupo específico para esta tarea (opcional)"
+    )
     
     # Nuevo campo para archivo adjunto
     attachment = models.FileField(
@@ -241,6 +278,20 @@ class Delivery(models.Model):
     feedback = models.TextField(blank=True)
     grade = models.DecimalField(max_digits=4, decimal_places=2, null=True, blank=True)
     file_corrected_url = models.CharField(max_length=255, blank=True)
+    
+    # Nuevo campo para entregas grupales
+    is_group_delivery = models.BooleanField(
+        default=False,
+        help_text="Si está marcado, esta entrega representa a todo el grupo"
+    )
+    group = models.ForeignKey(
+        Group,
+        on_delete=models.CASCADE,
+        related_name='deliveries',
+        null=True,
+        blank=True,
+        help_text="Grupo al que pertenece esta entrega (para entregas grupales)"
+    )
     
     # Nuevo campo para archivo adjunto de la entrega
     attachment = models.FileField(

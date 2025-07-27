@@ -41,6 +41,11 @@ urlpatterns = [
     path('teacher/classes/<int:class_id>/', views.teacher_class_detail, name='teacher_class_detail'),
     path('teacher/pending-reviews/', views.teacher_pending_reviews, name='teacher_pending_reviews'),
     path('teacher/reports/', views.teacher_reports, name='teacher_reports'),
+    path('teacher/classes/<int:class_id>/groups/', views.teacher_group_list, name='teacher_group_list'),
+    path('teacher/classes/<int:class_id>/groups/create/', views.teacher_group_create, name='teacher_group_create'),
+    path('teacher/groups/<int:group_id>/edit/', views.teacher_group_edit, name='teacher_group_edit'),
+    path('teacher/groups/<int:group_id>/delete/', views.teacher_group_delete, name='teacher_group_delete'),
+    path('teacher/ajax/get-groups/', views.ajax_get_groups, name='ajax_get_groups'),
     
     # === URLs PARA ESTUDIANTES ===
     path('student/', views.student_dashboard, name='student_dashboard'),

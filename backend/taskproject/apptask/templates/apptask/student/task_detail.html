@@ -44,7 +44,32 @@
                         <h6><i class="bi bi-clock text-primary"></i> Creada</h6>
                         <p>{{ task.created_at|date:"d/m/Y H:i" }}</p>
                     </div>
+                    <div class="col-md-6">
+                        <h6><i class="bi bi-tag text-primary"></i> Tipo de Tarea</h6>
+                        {% if task.is_group_task %}
+                            <p><span class="badge bg-warning">Tarea Grupal</span></p>
+                        {% else %}
+                            <p><span class="badge bg-info">Tarea Individual</span></p>
+                        {% endif %}
+                    </div>
                 </div>
+                
+                {% if task.is_group_task and group_info %}
+                    <div class="alert alert-warning mb-4">
+                        <h6><i class="bi bi-people"></i> Información del Grupo</h6>
+                        <p><strong>Grupo:</strong> {{ group_info.name }}</p>
+                        <p><strong>Miembros:</strong></p>
+                        <ul class="mb-0">
+                            {% for member in group_info.members %}
+                                <li>{{ member.display_name }}</li>
+                            {% endfor %}
+                        </ul>
+                        <small class="text-muted mt-2 d-block">
+                            <i class="bi bi-info-circle"></i> 
+                            Solo un miembro del grupo puede entregar la tarea. La calificación se aplicará a todos los miembros.
+                        </small>
+                    </div>
+                {% endif %}
                 
                 {% if task.instruction %}
                     <h6><i class="bi bi-list-ul text-primary"></i> Instrucciones</h6>
