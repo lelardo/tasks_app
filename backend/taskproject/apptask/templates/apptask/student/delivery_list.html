@@ -1,0 +1,68 @@
+{% extends 'apptask/base.html' %}
+{% block title %}Mis Entregas - Sistema de Tareas{% endblock %}
+{% block content %}
+<div class="container mt-4">
+    <h2><i class="bi bi-upload"></i> Mis Entregas</h2>
+    {% if deliveries %}
+        <div class="card mt-3">
+            <div class="card-header">
+                <h5 class="mb-0">Todas mis entregas ({{ deliveries|length }})</h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Tarea</th>
+                                <th>Clase</th>
+                                <th>Fecha de Entrega</th>
+                                <th>Nota</th>
+                                <th>Estado</th>
+                                <th>Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for delivery in deliveries %}
+                            <tr>
+                                <td>{{ delivery.task.theme }}</td>
+                                <td>{{ delivery.task.school_class.identify }}</td>
+                                <td>{{ delivery.date }} {{ delivery.delivery_time }}</td>
+                                <td>{% if delivery.grade %}{{ delivery.grade }}{% else %}-{% endif %}</td>
+                                <td>
+                                    {% if delivery.grade %}
+                                        <span class="badge bg-success">Calificada</span>
+                                    {% elif delivery.feedback %}
+                                        <span class="badge bg-info">Revisada</span>
+                                    {% else %}
+                                        <span class="badge bg-warning">Pendiente</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <a href="{% url 'student_task_detail' delivery.task.id %}" class="btn btn-sm btn-outline-primary">
+                                        <i class="bi bi-eye"></i> Ver tarea
+                                    </a>
+                                    {% if delivery.has_attachment %}
+                                        <a href="{% url 'download_delivery_attachment' delivery.id %}" class="btn btn-sm btn-outline-success" target="_blank">
+                                            <i class="bi bi-download"></i> Archivo
+                                        </a>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    {% else %}
+        <div class="alert alert-info mt-4">
+            <i class="bi bi-info-circle"></i> No tienes entregas registradas aún.
+        </div>
+    {% endif %}
+    <div class="mt-4">
+        <a href="{% url 'student_dashboard' %}" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left"></i> Volver al dashboard
+        </a>
+    </div>
+</div>
+{% endblock %} 

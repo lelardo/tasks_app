@@ -78,7 +78,7 @@
                     </div>
                     <div class="card-footer bg-transparent">
                         <div class="d-flex gap-2">
-                            <a href="{% url 'task_detail' task.id %}" class="btn btn-outline-primary btn-sm flex-fill">
+                            <a href="{% url 'student_task_detail' task.id %}" class="btn btn-outline-primary btn-sm flex-fill">
                                 <i class="bi bi-eye"></i> Ver
                             </a>
                             {% if task not in my_deliveries_tasks and not task.is_overdue %}
